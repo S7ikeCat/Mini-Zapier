@@ -1,11 +1,11 @@
 import { TriggerType } from "@prisma/client";
-import { WorkflowEngineService } from "./workflow-engine.service";
+import { WorkflowExecutionService } from "./workflow-execution.service";
 
 export class WorkflowRunService {
   static async runWorkflow(workflowId: string) {
-    return WorkflowEngineService.run({
+    return WorkflowExecutionService.execute({
       workflowId,
-      triggerType: TriggerType.SCHEDULE,
+      triggerType: TriggerType.WEBHOOK,
       source: "editor/manual-run",
       payload: {
         source: "manual-run",

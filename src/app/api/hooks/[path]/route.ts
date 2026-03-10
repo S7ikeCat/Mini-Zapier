@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TriggerType } from "@prisma/client";
 import { prisma } from "@/shared/lib/prisma";
-import { WorkflowEngineService } from "@/server/services/workflow-engine.service";
+import { workflowQueue } from "@/server/queues/workflow.queue";
 
 export async function POST(
   request: NextRequest,
@@ -9,6 +8,10 @@ export async function POST(
 ) {
   try {
     const { path } = await context.params;
+    console.log("Webhook hit", {
+      path,
+      userAgent: request.headers.get("user-agent"),
+    });
     const body = (await request.json().catch(() => ({}))) as Record<
       string,
       unknown
@@ -31,20 +34,18 @@ export async function POST(
       );
     }
 
-    const result = await WorkflowEngineService.run({
+    const job = await workflowQueue.add("workflow-run", {
       workflowId: endpoint.workflowId,
-      triggerType: TriggerType.WEBHOOK,
+      triggerType: "WEBHOOK",
       source: `webhook:${path}`,
       payload: body,
     });
 
     return NextResponse.json({
       success: true,
-      message: "Webhook executed successfully",
+      message: "Webhook execution queued",
       data: {
-        executionId: result.id,
-        status: result.status,
-        durationMs: result.durationMs,
+        jobId: job.id,
       },
     });
   } catch (error) {

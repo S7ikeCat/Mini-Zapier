@@ -12,6 +12,7 @@ import type { WorkflowExecutionContext } from "@/server/lib/workflow-context";
 import { resolveObjectTemplates } from "@/server/lib/workflow-value";
 import { sleep, withTimeout } from "@/server/lib/async-utils";
 import { getErrorMessage } from "@/server/lib/error-utils";
+import { WorkflowNotificationService } from "./workflow-notification.service";
 
 type RunWorkflowInput = {
   workflowId: string;
@@ -99,7 +100,8 @@ export class WorkflowEngineService {
       return updated;
     } catch (error) {
       const finishedAt = new Date();
-      const errorMessage = getErrorMessage(error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown workflow error";
 
       await prisma.execution.update({
         where: { id: execution.id },
@@ -119,6 +121,14 @@ export class WorkflowEngineService {
           level: LogLevel.ERROR,
           message: errorMessage,
         },
+      });
+
+      await WorkflowNotificationService.notifyFailure({
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        executionId: execution.id,
+        errorMessage,
+        source: input.source,
       });
 
       throw error;

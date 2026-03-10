@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum TriggerType {
+  WEBHOOK
+  SCHEDULE
+  EMAIL
+}
+
+enum ActionType {
+  HTTP
+  EMAIL
+  TELEGRAM
+  DATABASE
+  TRANSFORM
+}
+
+enum NodeKind {
+  TRIGGER
+  ACTION
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  RETRYING
+  PAUSED
+  CANCELED
+}
+
+enum StepStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+  RETRYING
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+  DEBUG
+}
+
+enum ConnectionType {
+  SMTP
+  TELEGRAM_BOT
+  POSTGRESQL
+  HTTP_BASIC
+  HTTP_BEARER
+  WEBHOOK_SECRET
+}
+
+model Workflow {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  status      WorkflowStatus @default(DRAFT)
+  isEnabled   Boolean        @default(false)
+  version     Int            @default(1)
+  tags        String[]
+  settings    Json?
+  canvas      Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  nodes           WorkflowNode[]
+  edges           WorkflowEdge[]
+  executions      Execution[]
+  webhookEndpoint WebhookEndpoint?
+  scheduleTrigger ScheduleTrigger?
+  emailTrigger    EmailTrigger?
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model WorkflowNode {
+  id           String   @id @default(cuid())
+  workflowId   String
+  kind         NodeKind
+  type         String
+  name         String
+  description  String?
+  positionX    Float    @default(0)
+  positionY    Float    @default(0)
+  config       Json
+  retryLimit   Int      @default(0)
+  retryDelayMs Int      @default(0)
+  timeoutMs    Int?
+  isEnabled    Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workflow       Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  fromEdges      WorkflowEdge[]  @relation("EdgeFrom")
+  toEdges        WorkflowEdge[]  @relation("EdgeTo")
+  executionSteps ExecutionStep[]
+
+  @@index([workflowId])
+  @@index([kind])
+  @@index([type])
+  @@index([sortOrder])
+}
+
+model WorkflowEdge {
+  id           String   @id @default(cuid())
+  workflowId   String
+  sourceNodeId String
+  targetNodeId String
+  label        String?
+  createdAt    DateTime @default(now())
+
+  workflow   Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  sourceNode WorkflowNode @relation("EdgeFrom", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  targetNode WorkflowNode @relation("EdgeTo", fields: [targetNodeId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([sourceNodeId])
+  @@index([targetNodeId])
+}
+
+model Execution {
+  id            String          @id @default(cuid())
+  workflowId    String
+  status        ExecutionStatus @default(PENDING)
+  triggerType   TriggerType
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  durationMs    Int?
+  inputPayload  Json?
+  outputPayload Json?
+  errorMessage  String?
+  retryCount    Int             @default(0)
+  source        String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  workflow Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  steps    ExecutionStep[]
+  logs     ExecutionLog[]
+
+  @@index([workflowId])
+  @@index([status])
+  @@index([triggerType])
+  @@index([createdAt])
+}
+
+model ExecutionStep {
+  id            String     @id @default(cuid())
+  executionId   String
+  nodeId        String
+  nodeName      String
+  nodeType      String
+  status        StepStatus @default(PENDING)
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  durationMs    Int?
+  inputPayload  Json?
+  outputPayload Json?
+  errorMessage  String?
+  retryCount    Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  execution Execution    @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  node      WorkflowNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([executionId])
+  @@index([nodeId])
+  @@index([status])
+}
+
+model ExecutionLog {
+  id          String   @id @default(cuid())
+  executionId String
+  stepId      String?
+  level       LogLevel @default(INFO)
+  message     String
+  meta        Json?
+  createdAt   DateTime @default(now())
+
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId])
+  @@index([stepId])
+  @@index([level])
+  @@index([createdAt])
+}
+
+model Connection {
+  id            String         @id @default(cuid())
+  name          String
+  type          ConnectionType
+  isActive      Boolean        @default(true)
+  config        Json
+  encryptedData String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([type])
+  @@index([isActive])
+}
+
+model WebhookEndpoint {
+  id         String   @id @default(cuid())
+  workflowId String   @unique
+  path       String   @unique
+  secret     String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+}
+
+model ScheduleTrigger {
+  id             String    @id @default(cuid())
+  workflowId     String    @unique
+  cronExpression String
+  timezone       String    @default("UTC")
+  isActive       Boolean   @default(true)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+}
+
+model EmailTrigger {
+  id            String   @id @default(cuid())
+  workflowId    String   @unique
+  emailAddress  String
+  subjectFilter String?
+  fromFilter    String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+}

@@ -10,6 +10,7 @@ import {
   BarChart3,
   Settings,
   Shield,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
@@ -20,6 +21,7 @@ const items = [
   { label: "Executions", href: "/executions", icon: PlaySquare },
   { label: "Analytics", href: "/analytics", icon: BarChart3 },
   { label: "Settings", href: "/settings", icon: Settings },
+  { label: "API Docs", href: "/api-docs", icon: FileText },
 ];
 
 export function Sidebar() {

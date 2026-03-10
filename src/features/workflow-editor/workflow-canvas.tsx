@@ -16,7 +16,7 @@ import {
   type NodeChange,
   type EdgeChange,
 } from "@xyflow/react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "@xyflow/react/dist/style.css";
 
 import { WorkflowNode } from "./workflow-node";
@@ -62,6 +62,8 @@ function WorkflowCanvasInner({
   onSelectNode,
   selectedNodeId,
 }: WorkflowCanvasProps) {
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
   const onNodesChange = useCallback(
     (changes: NodeChange<WorkflowCanvasNode>[]) => {
       const nextNodes = applyNodeChanges(changes, nodes);
@@ -99,13 +101,23 @@ function WorkflowCanvasInner({
 
   const handleNodeClick = useCallback(
     (_event: React.MouseEvent, node: WorkflowCanvasNode) => {
+      setSelectedEdgeId(null);
       onSelectNode(node.id);
+    },
+    [onSelectNode]
+  );
+
+  const handleEdgeClick = useCallback(
+    (_event: React.MouseEvent, edge: WorkflowCanvasEdge) => {
+      onSelectNode(null);
+      setSelectedEdgeId(edge.id);
     },
     [onSelectNode]
   );
 
   const handlePaneClick = useCallback(() => {
     onSelectNode(null);
+    setSelectedEdgeId(null);
   }, [onSelectNode]);
 
   useEffect(() => {
@@ -142,6 +154,53 @@ function WorkflowCanvasInner({
     onNodeAdded();
   }, [pendingNode, nodes, onNodeAdded, onNodesChangeControlled]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName?.toLowerCase();
+
+      if (
+        tagName === "input" ||
+        tagName === "textarea" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (event.key !== "Delete" && event.key !== "Backspace") {
+        return;
+      }
+
+      if (selectedEdgeId) {
+        onEdgesChangeControlled(edges.filter((edge) => edge.id !== selectedEdgeId));
+        setSelectedEdgeId(null);
+        return;
+      }
+
+      if (selectedNodeId) {
+        onNodesChangeControlled(nodes.filter((node) => node.id !== selectedNodeId));
+        onEdgesChangeControlled(
+          edges.filter(
+            (edge) =>
+              edge.source !== selectedNodeId && edge.target !== selectedNodeId
+          )
+        );
+        onSelectNode(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    edges,
+    nodes,
+    onEdgesChangeControlled,
+    onNodesChangeControlled,
+    onSelectNode,
+    selectedEdgeId,
+    selectedNodeId,
+  ]);
+
   return (
     <div className="h-full w-full overflow-hidden bg-[#07111f]">
       <ReactFlow
@@ -149,7 +208,10 @@ function WorkflowCanvasInner({
           ...node,
           selected: selectedNodeId === node.id,
         }))}
-        edges={edges}
+        edges={edges.map((edge) => ({
+          ...edge,
+          selected: selectedEdgeId === edge.id,
+        }))}
         nodeTypes={nodeTypes}
         fitView
         nodesDraggable
@@ -159,6 +221,7 @@ function WorkflowCanvasInner({
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={handleNodeClick}
+        onEdgeClick={handleEdgeClick}
         onPaneClick={handlePaneClick}
         proOptions={{ hideAttribution: true }}
       >

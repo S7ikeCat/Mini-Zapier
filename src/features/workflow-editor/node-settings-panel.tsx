@@ -1,5 +1,7 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
+
 type EditableNode = {
   id: string;
   name: string;
@@ -15,22 +17,16 @@ type EditableNode = {
 interface NodeSettingsPanelProps {
   node: EditableNode | null;
   onChange: (nodeId: string, patch: Partial<EditableNode>) => void;
+  onDelete: (nodeId: string) => void;
 }
 
 export function NodeSettingsPanel({
   node,
   onChange,
+  onDelete,
 }: NodeSettingsPanelProps) {
   if (!node) {
-    return (
-      <aside className="h-full w-[300px] shrink-0 border-l border-white/10 bg-[#08101d]">
-        <div className="h-full overflow-y-auto p-4">
-          <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-5 text-sm text-white/45">
-            Выбери ноду на canvas, чтобы редактировать её настройки.
-          </div>
-        </div>
-      </aside>
-    );
+    return null;
   }
 
   return (
@@ -136,6 +132,15 @@ export function NodeSettingsPanel({
               className="h-5 w-5 shrink-0 accent-cyan-400"
             />
           </label>
+
+          <button
+            type="button"
+            onClick={() => onDelete(node.id)}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-400/15"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete node
+          </button>
         </div>
       </div>
     </aside>

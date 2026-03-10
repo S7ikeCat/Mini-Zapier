@@ -95,7 +95,7 @@ import {
         positionY: 120,
         config: {
           method: "POST",
-          url: "https://example-crm.com/api/leads",
+          url: "https://httpbin.org/post",
         },
         retryLimit: 3,
         retryDelayMs: 2000,

@@ -1,11 +1,14 @@
+import { notFound } from "next/navigation";
 import { prisma } from "@/shared/lib/prisma";
 import { WorkflowEditor } from "@/features/workflow-editor/workflow-editor";
 
+type WorkflowEditorPageProps = {
+  params: Promise<{ id: string }>;
+};
+
 export default async function WorkflowEditorPage({
   params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+}: WorkflowEditorPageProps) {
   const { id } = await params;
 
   const workflow = await prisma.workflow.findUnique({
@@ -17,7 +20,7 @@ export default async function WorkflowEditorPage({
   });
 
   if (!workflow) {
-    return <div className="text-white p-8">Workflow not found</div>;
+    notFound();
   }
 
   return <WorkflowEditor workflow={workflow} />;

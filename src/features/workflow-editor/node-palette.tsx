@@ -37,10 +37,10 @@ const actionItems: PaletteItemData[] = [
 
 export function NodePalette({ onAddNode }: NodePaletteProps) {
   return (
-    <div className="w-72 shrink-0 border-r border-white/10 bg-[#08101d] p-4">
+    <div className="h-full w-[240px] shrink-0 overflow-y-auto border-r border-white/10 bg-[#08101d] px-3 py-4">
       <div className="space-y-4">
         <div>
-          <h2 className="mb-4 text-lg font-semibold text-white">Triggers</h2>
+        <h2 className="mb-3 text-base font-semibold text-white">Triggers</h2>
           <div className="space-y-3">
             {triggerItems.map((item) => (
               <PaletteItem
@@ -53,7 +53,7 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
         </div>
 
         <div className="pt-6">
-          <h2 className="mb-4 text-lg font-semibold text-white">Actions</h2>
+        <h2 className="mb-3 text-base font-semibold text-white">Actions</h2>
           <div className="space-y-3">
             {actionItems.map((item) => (
               <PaletteItem

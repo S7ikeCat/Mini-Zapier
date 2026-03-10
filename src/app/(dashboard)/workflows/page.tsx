@@ -1,5 +1,6 @@
 import { prisma } from "@/shared/lib/prisma";
-import { BadgeCheck, CirclePause, FileCode2, Play, Plus } from "lucide-react";
+import { ArrowUpRight, BadgeCheck, CirclePause, FileCode2, Play, Plus } from "lucide-react";
+import Link from "next/link";
 
 function getStatusStyles(status: string) {
   switch (status) {
@@ -50,91 +51,101 @@ export default async function WorkflowsPage() {
           const lastExecution = workflow.executions[0];
 
           return (
-            <div
-              key={workflow.id}
-              className="rounded-3xl border border-white/10 bg-white/5 p-6"
+            <Link
+  key={workflow.id}
+  href={`/workflows/${workflow.id}`}
+  className="group block rounded-3xl focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
+>
+  <div className="rounded-3xl border border-white/10 bg-white/5 p-6 transition duration-200 hover:border-cyan-400/30 hover:bg-white/[0.07] hover:shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_20px_60px_rgba(0,0,0,0.25)]">
+    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-2xl font-semibold">{workflow.name}</h2>
+          <span
+            className={`rounded-full border px-3 py-1 text-xs ${getStatusStyles(workflow.status)}`}
+          >
+            {workflow.status}
+          </span>
+
+          <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-300 opacity-0 transition group-hover:opacity-100">
+            Open editor
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </span>
+        </div>
+
+        <p className="max-w-2xl text-white/55">
+          {workflow.description || "Описание пока не добавлено"}
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          {workflow.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-white/10 bg-[#0b1728] px-3 py-1 text-xs text-white/65 transition group-hover:border-cyan-400/20"
             >
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-semibold">{workflow.name}</h2>
-                    <span
-                      className={`rounded-full border px-3 py-1 text-xs ${getStatusStyles(workflow.status)}`}
-                    >
-                      {workflow.status}
-                    </span>
-                  </div>
+              #{tag}
+            </span>
+          ))}
+        </div>
+      </div>
 
-                  <p className="max-w-2xl text-white/55">
-                    {workflow.description || "Описание пока не добавлено"}
-                  </p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+          <p className="text-sm text-white/40">Nodes</p>
+          <p className="mt-2 text-xl font-semibold">{workflow.nodes.length}</p>
+        </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    {workflow.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full border border-white/10 bg-[#0b1728] px-3 py-1 text-xs text-white/65"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+        <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+          <p className="text-sm text-white/40">Enabled</p>
+          <p className="mt-2 text-xl font-semibold">
+            {workflow.isEnabled ? "Yes" : "No"}
+          </p>
+        </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4">
-                    <p className="text-sm text-white/40">Nodes</p>
-                    <p className="mt-2 text-xl font-semibold">{workflow.nodes.length}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4">
-                    <p className="text-sm text-white/40">Enabled</p>
-                    <p className="mt-2 text-xl font-semibold">
-                      {workflow.isEnabled ? "Yes" : "No"}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4">
-                    <p className="text-sm text-white/40">Version</p>
-                    <p className="mt-2 text-xl font-semibold">v{workflow.version}</p>
-                  </div>
-                </div>
-              </div>
+        <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+          <p className="text-sm text-white/40">Version</p>
+          <p className="mt-2 text-xl font-semibold">v{workflow.version}</p>
+        </div>
+      </div>
+    </div>
 
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <FileCode2 className="h-4 w-4 text-cyan-300" />
-                    <p className="text-sm font-medium">Last execution</p>
-                  </div>
-                  <p className="text-sm text-white/55">
-                    {lastExecution ? lastExecution.status : "Нет запусков"}
-                  </p>
-                </div>
+    <div className="mt-6 grid gap-4 md:grid-cols-3">
+      <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+        <div className="mb-3 flex items-center gap-2">
+          <FileCode2 className="h-4 w-4 text-cyan-300" />
+          <p className="text-sm font-medium">Last execution</p>
+        </div>
+        <p className="text-sm text-white/55">
+          {lastExecution ? lastExecution.status : "Нет запусков"}
+        </p>
+      </div>
 
-                <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <BadgeCheck className="h-4 w-4 text-emerald-300" />
-                    <p className="text-sm font-medium">Created at</p>
-                  </div>
-                  <p className="text-sm text-white/55">
-                    {new Date(workflow.createdAt).toLocaleString("ru-RU")}
-                  </p>
-                </div>
+      <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+        <div className="mb-3 flex items-center gap-2">
+          <BadgeCheck className="h-4 w-4 text-emerald-300" />
+          <p className="text-sm font-medium">Created at</p>
+        </div>
+        <p className="text-sm text-white/55">
+          {new Date(workflow.createdAt).toLocaleString("ru-RU")}
+        </p>
+      </div>
 
-                <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    {workflow.isEnabled ? (
-                      <Play className="h-4 w-4 text-emerald-300" />
-                    ) : (
-                      <CirclePause className="h-4 w-4 text-amber-300" />
-                    )}
-                    <p className="text-sm font-medium">Mode</p>
-                  </div>
-                  <p className="text-sm text-white/55">
-                    {workflow.isEnabled ? "Production active" : "Inactive"}
-                  </p>
-                </div>
-              </div>
-            </div>
+      <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+        <div className="mb-3 flex items-center gap-2">
+          {workflow.isEnabled ? (
+            <Play className="h-4 w-4 text-emerald-300" />
+          ) : (
+            <CirclePause className="h-4 w-4 text-amber-300" />
+          )}
+          <p className="text-sm font-medium">Mode</p>
+        </div>
+        <p className="text-sm text-white/55">
+          {workflow.isEnabled ? "Production active" : "Inactive"}
+        </p>
+      </div>
+    </div>
+  </div>
+</Link>
           );
         })}
 

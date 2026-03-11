@@ -1,6 +1,7 @@
 import { prisma } from "@/shared/lib/prisma";
 import { ArrowUpRight, BadgeCheck, CirclePause, FileCode2, Play, Plus } from "lucide-react";
 import Link from "next/link";
+import { DeleteWorkflowButton } from "@/features/workflow/delete-workflow-button";
 
 function getStatusStyles(status: string) {
   switch (status) {
@@ -40,10 +41,28 @@ export default async function WorkflowsPage() {
           </p>
         </div>
 
-        <button className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 font-medium text-slate-900">
-          <Plus className="h-4 w-4" />
-          New workflow
-        </button>
+        <Link
+  href="/workflows/new"
+  className="
+    group relative inline-flex items-center gap-2
+    rounded-2xl px-5 py-3
+    font-medium text-slate-900
+
+    bg-white
+    shadow-sm
+
+    transition-all duration-300 ease-out
+
+    hover:-translate-y-1
+    hover:shadow-[0_10px_30px_rgba(255,255,255,0.25)]
+    hover:scale-[1.04]
+
+    active:scale-[0.96]
+  "
+>
+  <Plus className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90" />
+  New workflow
+</Link>
       </section>
 
       <section className="grid gap-4">
@@ -59,25 +78,37 @@ export default async function WorkflowsPage() {
   <div className="rounded-3xl border border-white/10 bg-white/5 p-6 transition duration-200 hover:border-cyan-400/30 hover:bg-white/[0.07] hover:shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_20px_60px_rgba(0,0,0,0.25)]">
     <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl font-semibold">{workflow.name}</h2>
-          <span
-            className={`rounded-full border px-3 py-1 text-xs ${getStatusStyles(workflow.status)}`}
-          >
-            {workflow.status}
-          </span>
+      <div className="flex flex-wrap items-center gap-3">
+  <h2 className="text-2xl font-semibold">{workflow.name}</h2>
 
-          <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-300 opacity-0 transition group-hover:opacity-100">
-            Open editor
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </span>
-        </div>
+  <span
+    className={`rounded-full border px-3 py-1 text-xs ${getStatusStyles(workflow.status)}`}
+  >
+    {workflow.status}
+  </span>
+
+  {/* OPEN EDITOR */}
+  <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-300 opacity-0 transition-all duration-200 group-hover:opacity-100">
+    Open editor
+    <ArrowUpRight className="h-3.5 w-3.5" />
+  </span>
+
+  {/* DELETE */}
+  <DeleteWorkflowButton
+    workflowId={workflow.id}
+    workflowName={workflow.name}
+    className="inline-flex items-center gap-1 rounded-full border border-red-400/20 bg-red-400/10 px-3 py-1 text-xs text-red-300 opacity-0 transition-all duration-200 group-hover:opacity-100 hover:bg-red-400/15 cursor-pointer"
+  />
+</div>
 
         <p className="max-w-2xl text-white/55">
           {workflow.description || "Описание пока не добавлено"}
         </p>
 
+            
+
         <div className="flex flex-wrap gap-2">
+          
           {workflow.tags.map((tag) => (
             <span
               key={tag}

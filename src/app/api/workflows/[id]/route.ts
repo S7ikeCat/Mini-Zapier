@@ -4,6 +4,7 @@ import { WorkflowService } from "@/server/services/workflow.service";
 import { updateWorkflowSchema } from "@/server/validations/workflow";
 import { errorResponse, successResponse } from "@/server/lib/api-response";
 import { toPrismaJson } from "@/server/lib/prisma-json";
+import { prisma } from "@/shared/lib/prisma";
 
 /**
  * @swagger
@@ -87,15 +88,24 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  _: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await context.params;
-    await WorkflowService.delete(id);
 
-    return successResponse({ id }, "Workflow deleted");
+
+
+type RouteContext = {
+  params: Promise<{
+    id: string;
+  }>;
+};
+
+export async function DELETE(_: Request, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+
+    await prisma.workflow.delete({
+      where: { id },
+    });
+
+    return successResponse(null, "Workflow deleted");
   } catch (error) {
     return errorResponse(
       "Failed to delete workflow",

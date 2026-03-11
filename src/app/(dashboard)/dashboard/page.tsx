@@ -131,13 +131,6 @@ import {
               </div>
             </div>
   
-            <div className="rounded-3xl border border-amber-400/20 bg-amber-400/10 p-6">
-              <h2 className="text-lg font-semibold text-amber-200">Что дальше</h2>
-              <p className="mt-3 text-sm leading-7 text-amber-50/80">
-                Следующий этап: Prisma-схема, PostgreSQL, REST API, Swagger и
-                модель workflow/execution/log.
-              </p>
-            </div>
           </div>
         </section>
       </div>

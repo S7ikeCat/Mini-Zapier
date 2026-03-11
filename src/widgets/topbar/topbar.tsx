@@ -1,4 +1,6 @@
-import { Bell, Search } from "lucide-react";
+import { Search } from "lucide-react";
+
+import { NotificationsButton } from "./notifications-button";
 
 export function Topbar() {
   return (
@@ -12,9 +14,7 @@ export function Topbar() {
           />
         </div>
 
-        <button className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10">
-          <Bell className="h-5 w-5" />
-        </button>
+        <NotificationsButton />
       </div>
     </header>
   );

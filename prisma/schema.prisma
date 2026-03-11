@@ -69,6 +69,12 @@ enum ConnectionType {
   WEBHOOK_SECRET
 }
 
+enum NotificationType {
+  INFO
+  WARNING
+  ERROR
+}
+
 model Workflow {
   id          String         @id @default(cuid())
   name        String
@@ -91,6 +97,8 @@ model Workflow {
 
   @@index([status])
   @@index([createdAt])
+
+  notifications   Notification[]
 }
 
 model WorkflowNode {
@@ -163,6 +171,12 @@ model Execution {
   @@index([status])
   @@index([triggerType])
   @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([triggerType, createdAt])
+  @@index([workflowId, createdAt])
+  @@index([workflowId, status, createdAt])
+
+  notifications   Notification[]
 }
 
 model ExecutionStep {
@@ -188,6 +202,8 @@ model ExecutionStep {
   @@index([executionId])
   @@index([nodeId])
   @@index([status])
+  @@index([executionId, createdAt])
+  @@index([executionId, status])
 }
 
 model ExecutionLog {
@@ -205,6 +221,28 @@ model ExecutionLog {
   @@index([stepId])
   @@index([level])
   @@index([createdAt])
+  @@index([executionId, createdAt])
+  @@index([executionId, level])
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  type        NotificationType @default(INFO)
+  title       String
+  message     String
+  isRead      Boolean          @default(false)
+  workflowId  String?
+  executionId String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  workflow  Workflow?  @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  execution Execution? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  @@index([isRead, createdAt])
+  @@index([workflowId, createdAt])
+  @@index([executionId, createdAt])
+  @@index([type, createdAt])
 }
 
 model Connection {
@@ -259,3 +297,5 @@ model EmailTrigger {
 
   workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 }
+
+

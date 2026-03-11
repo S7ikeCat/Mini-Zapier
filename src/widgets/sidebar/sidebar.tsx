@@ -8,7 +8,6 @@ import {
   History,
   PlaySquare,
   BarChart3,
-  Settings,
   Shield,
   FileText,
 } from "lucide-react";
@@ -20,7 +19,6 @@ const items = [
   { label: "History", href: "/history", icon: History },
   { label: "Executions", href: "/executions", icon: PlaySquare },
   { label: "Analytics", href: "/analytics", icon: BarChart3 },
-  { label: "Settings", href: "/settings", icon: Settings },
   { label: "API Docs", href: "/api-docs", icon: FileText },
 ];
 

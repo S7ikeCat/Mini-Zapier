@@ -2,6 +2,7 @@
 
 import type { ChangeEvent, ReactNode } from "react";
 import { Trash2 } from "lucide-react";
+import { CronExpressionParser } from "cron-parser";
 
 export type EditableNode = {
   id: string;
@@ -54,6 +55,73 @@ function getConfigObject(
   }
 
   return {};
+}
+
+function getSchedulePreview(
+  cron: string,
+  timezone: string
+): {
+  isValid: boolean;
+  nextRunLabel: string;
+  error: string | null;
+} {
+  const normalizedCron = cron.trim();
+  const normalizedTimezone = timezone.trim();
+
+  if (!normalizedCron) {
+    return {
+      isValid: false,
+      nextRunLabel: "Enter cron expression",
+      error: null,
+    };
+  }
+
+  try {
+    const interval = CronExpressionParser.parse(normalizedCron, {
+      currentDate: new Date(),
+      ...(normalizedTimezone ? { tz: normalizedTimezone } : {}),
+    });
+
+    const nextRun = interval.next().toDate();
+
+    return {
+      isValid: true,
+      nextRunLabel: nextRun.toLocaleString(),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      isValid: false,
+      nextRunLabel: "Invalid cron expression",
+      error: error instanceof Error ? error.message : "Invalid cron expression",
+    };
+  }
+}
+
+function parseCronParts(cron: string): [string, string, string, string, string] {
+  const parts = cron.trim().split(/\s+/);
+
+  return [
+    parts[0] ?? "*",
+    parts[1] ?? "*",
+    parts[2] ?? "*",
+    parts[3] ?? "*",
+    parts[4] ?? "*",
+  ];
+}
+
+function buildCronFromParts(parts: [string, string, string, string, string]): string {
+  return parts.map((part) => part.trim() || "*").join(" ");
+}
+
+function normalizeCronPart(value: string): string {
+  const normalized = value.replace(/\s+/g, "").trim();
+
+  if (!normalized) {
+    return "*";
+  }
+
+  return normalized;
 }
 
 export function NodeSettingsPanel({
@@ -111,6 +179,212 @@ export function NodeSettingsPanel({
     onChange(node.id, {
       isEnabled: e.target.checked,
     });
+  };
+
+  const renderScheduleSettings = () => {
+    const cron = getConfigString(node.config, "cron", "* * * * *");
+    const detectedTimezone =
+  Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timezone = getConfigString(node.config, "timezone", "");
+  
+    const [minute, hour, dayOfMonth, month, dayOfWeek] = parseCronParts(cron);
+    const preview = getSchedulePreview(cron, timezone);
+  
+    const updateCronPart = (
+      index: 0 | 1 | 2 | 3 | 4,
+      value: string
+    ) => {
+      const parts = parseCronParts(cron);
+      parts[index] = normalizeCronPart(value);
+  
+      patchConfig({
+        cron: buildCronFromParts(parts),
+      });
+    };
+  
+    const applyPreset = (presetCron: string) => {
+      patchConfig({
+        cron: presetCron,
+      });
+    };
+  
+    const isPaused = node.isEnabled === false;
+  
+    return (
+      <>
+        <div className="grid grid-cols-5 gap-2">
+          <Field label="Min">
+            <input
+              value={minute}
+              onChange={(e) => updateCronPart(0, e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-center text-sm text-white outline-none placeholder:text-white/25"
+              placeholder="*"
+              maxLength={20}
+            />
+          </Field>
+  
+          <Field label="Hr">
+            <input
+              value={hour}
+              onChange={(e) => updateCronPart(1, e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-center text-sm text-white outline-none placeholder:text-white/25"
+              placeholder="*"
+              maxLength={20}
+            />
+          </Field>
+  
+          <Field label="Day">
+            <input
+              value={dayOfMonth}
+              onChange={(e) => updateCronPart(2, e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-center text-sm text-white outline-none placeholder:text-white/25"
+              placeholder="*"
+              maxLength={20}
+            />
+          </Field>
+  
+          <Field label="Mon">
+            <input
+              value={month}
+              onChange={(e) => updateCronPart(3, e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-center text-sm text-white outline-none placeholder:text-white/25"
+              placeholder="*"
+              maxLength={20}
+            />
+          </Field>
+  
+          <Field label="Week">
+            <input
+              value={dayOfWeek}
+              onChange={(e) => updateCronPart(4, e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-center text-sm text-white outline-none placeholder:text-white/25"
+              placeholder="*"
+              maxLength={20}
+            />
+          </Field>
+        </div>
+  
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/45">
+            Cron expression
+          </p>
+          <code className="mt-2 block break-all text-sm text-white/80">{cron}</code>
+        </div>
+  
+        <Field label="Timezone">
+          <input
+            value={timezone}
+            onChange={(e) => patchConfig({ timezone: e.target.value })}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+            placeholder="Europe/Amsterdam"
+          />
+          <div className="mt-2 flex items-center gap-2">
+  <button
+    type="button"
+    onClick={() =>
+      patchConfig({
+        timezone: detectedTimezone,
+      })
+    }
+    className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:bg-cyan-400/15"
+  >
+    Detect automatically
+  </button>
+
+
+</div>
+        </Field>
+  
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => applyPreset("* * * * *")}
+            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/75 transition hover:bg-white/10"
+          >
+            Every minute
+          </button>
+  
+          <button
+            type="button"
+            onClick={() => applyPreset("*/5 * * * *")}
+            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/75 transition hover:bg-white/10"
+          >
+            Every 5 min
+          </button>
+  
+          <button
+            type="button"
+            onClick={() => applyPreset("0 * * * *")}
+            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/75 transition hover:bg-white/10"
+          >
+            Every hour
+          </button>
+  
+          <button
+            type="button"
+            onClick={() => applyPreset("0 9 * * *")}
+            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/75 transition hover:bg-white/10"
+          >
+            Daily 09:00
+          </button>
+        </div>
+  
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              onChange(node.id, {
+                isEnabled: isPaused,
+              })
+            }
+            className="flex-1 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm font-medium text-amber-200 transition hover:bg-amber-400/15"
+          >
+            {isPaused ? "Resume schedule" : "Pause schedule"}
+          </button>
+  
+          <button
+            type="button"
+            onClick={() =>
+              patchConfig({
+                cron: "",
+                timezone: "",
+              })
+            }
+            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white/75 transition hover:bg-white/10"
+          >
+            Clear
+          </button>
+        </div>
+  
+        <div
+          className={`rounded-2xl border px-4 py-3 ${
+            preview.isValid
+              ? "border-emerald-400/20 bg-emerald-400/10"
+              : "border-amber-400/20 bg-amber-400/10"
+          }`}
+        >
+          <p
+            className={`text-xs font-medium uppercase tracking-[0.15em] ${
+              preview.isValid ? "text-emerald-300/80" : "text-amber-300/80"
+            }`}
+          >
+            Schedule preview
+          </p>
+  
+          <p className="mt-2 text-sm text-white">
+            {isPaused ? "Schedule is paused" : `Next run: ${preview.nextRunLabel}`}
+          </p>
+  
+          <p className="mt-1 text-xs text-white/55">
+            Timezone: {timezone || "Server default"}
+          </p>
+  
+          {preview.error ? (
+            <p className="mt-2 text-xs text-amber-200">{preview.error}</p>
+          ) : null}
+        </div>
+      </>
+    );
   };
 
   const renderWebhookSettings = () => {
@@ -312,6 +586,7 @@ export function NodeSettingsPanel({
           {node.type === "HTTP" && renderHttpSettings()}
           {node.type === "TELEGRAM" && renderTelegramSettings()}
           {node.type === "TRANSFORM" && renderTransformSettings()}
+          {node.type === "SCHEDULE" && renderScheduleSettings()}
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Retry limit">

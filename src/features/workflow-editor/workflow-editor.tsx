@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { ArrowLeft, Loader2, Play, Save } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Loader2, Play, Save, AlertTriangle } from "lucide-react";
 import type { Edge, Node } from "@xyflow/react";
 import type { WorkflowWithGraph } from "@/shared/types/workflow-graph";
 import { NodePalette, type PaletteItemData } from "./node-palette";
@@ -56,6 +56,12 @@ type SavePayload = {
 };
 
 type SelectedNode = EditableNode;
+
+type LiveExecutionResult = WorkflowExecutionResult & {
+  executionId?: string;
+  triggerType?: string;
+  updatedAt?: string;
+};
 
 function mapWorkflowToCanvasNodes(
   workflow: WorkflowWithGraph
@@ -130,6 +136,91 @@ function buildSavePayload(
   };
 }
 
+function mapSavedNodeEnabled(nodes: WorkflowCanvasNode[]): Record<string, boolean> {
+  return Object.fromEntries(nodes.map((node) => [node.id, node.data.isEnabled]));
+}
+
+function getStepStatusTone(status: string): string {
+  switch (status) {
+    case "SUCCESS":
+      return "text-emerald-300";
+    case "RUNNING":
+      return "text-cyan-300";
+    case "RETRYING":
+      return "text-amber-300";
+    case "FAILED":
+      return "text-rose-300";
+    default:
+      return "text-white/60";
+  }
+}
+
+function getRunStatusTone(status: string): string {
+  switch (status) {
+    case "SUCCESS":
+      return "text-emerald-300";
+    case "RUNNING":
+      return "text-cyan-300";
+    case "RETRYING":
+      return "text-amber-300";
+    case "FAILED":
+      return "text-rose-300";
+    default:
+      return "text-white";
+  }
+}
+
+function getScheduleSnapshot(nodes: WorkflowCanvasNode[]): string {
+  const scheduleNodes = nodes
+    .filter((node) => node.data.type === "SCHEDULE")
+    .map((node) => ({
+      id: node.id,
+      isEnabled: node.data.isEnabled ?? true,
+      cron:
+        typeof node.data.config?.cron === "string"
+          ? node.data.config.cron
+          : "",
+      timezone:
+        typeof node.data.config?.timezone === "string"
+          ? node.data.config.timezone
+          : "",
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  return JSON.stringify(scheduleNodes);
+}
+
+function getRelativeUpdatedLabel(updatedAt?: string, nowMs?: number): string {
+  if (!updatedAt) {
+    return "Updated recently";
+  }
+
+  const updatedTime = new Date(updatedAt).getTime();
+
+  if (Number.isNaN(updatedTime)) {
+    return "Updated recently";
+  }
+
+  const diffMs = (nowMs ?? Date.now()) - updatedTime;
+  const diffSec = Math.max(0, Math.floor(diffMs / 1000));
+
+  if (diffSec < 5) {
+    return "Updated just now";
+  }
+
+  if (diffSec < 60) {
+    return `Updated ${diffSec} sec ago`;
+  }
+
+  const diffMin = Math.floor(diffSec / 60);
+
+  if (diffMin < 60) {
+    return `Updated ${diffMin} min ago`;
+  }
+
+  return `Updated at ${new Date(updatedAt).toLocaleTimeString()}`;
+}
+
 export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
   const [pendingNode, setPendingNode] = useState<PaletteItemData | null>(null);
   const [nodes, setNodes] = useState<WorkflowCanvasNode[]>(
@@ -138,12 +229,95 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
   const [edges, setEdges] = useState<WorkflowCanvasEdge[]>(
     mapWorkflowToCanvasEdges(workflow)
   );
+  const [savedNodeEnabledById, setSavedNodeEnabledById] = useState<Record<string, boolean>>(
+    () => mapSavedNodeEnabled(mapWorkflowToCanvasNodes(workflow))
+  );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isRunResultOpen, setIsRunResultOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [lastRunResult, setLastRunResult] =
-    useState<WorkflowExecutionResult | null>(null);
+  const [liveExecutions, setLiveExecutions] = useState<LiveExecutionResult[]>([]);
+  const [nowMs, setNowMs] = useState<number>(Date.now());
+
+  const pollingRef = useRef<number | null>(null);
+  const clockRef = useRef<number | null>(null);
+
+  const hasSavedActiveSchedule = useMemo(
+    () =>
+      nodes.some(
+        (node) =>
+          node.data.type === "SCHEDULE" &&
+          (savedNodeEnabledById[node.id] ?? node.data.isEnabled) === true
+      ),
+    [nodes, savedNodeEnabledById]
+  );
+
+  const stopExecutionPolling = useCallback(() => {
+    if (pollingRef.current !== null) {
+      window.clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, []);
+
+  
+
+  const fetchLiveExecutions = useCallback(async () => {
+    const response = await fetch(`/api/workflows/${workflow.id}/executions-live`, {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    const result: {
+      success: boolean;
+      data?: LiveExecutionResult[];
+      message?: string;
+    } = await response.json();
+
+    if (!response.ok || !result.success || !result.data) {
+      return;
+    }
+
+    setLiveExecutions(result.data);
+
+    const hasActiveExecution = result.data.some(
+      (execution) =>
+        execution.status === "RUNNING" || execution.status === "RETRYING"
+    );
+
+    if (!hasActiveExecution) {
+      setIsRunning(false);
+    }
+  }, [workflow.id]);
+
+  const startExecutionPolling = useCallback(() => {
+    if (pollingRef.current !== null) {
+      return;
+    }
+
+    void fetchLiveExecutions();
+
+    pollingRef.current = window.setInterval(() => {
+      void fetchLiveExecutions();
+    }, 1000);
+  }, [fetchLiveExecutions]);
+
+  useEffect(() => {
+    clockRef.current = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      if (clockRef.current !== null) {
+        window.clearInterval(clockRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopExecutionPolling();
+    };
+  }, [stopExecutionPolling]);
 
   const handleAddNodeRequest = useCallback((item: PaletteItemData) => {
     setPendingNode(item);
@@ -164,6 +338,22 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
   const handleSelectNode = useCallback((nodeId: string | null) => {
     setSelectedNodeId(nodeId);
   }, []);
+
+  const hasUnsavedScheduleChanges = useMemo(() => {
+    const savedSnapshot = getScheduleSnapshot(
+      nodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          isEnabled: savedNodeEnabledById[node.id] ?? node.data.isEnabled,
+        },
+      }))
+    );
+
+    const currentSnapshot = getScheduleSnapshot(nodes);
+
+    return savedSnapshot !== currentSnapshot;
+  }, [nodes, savedNodeEnabledById]);
 
   const selectedNode = useMemo<SelectedNode | null>(() => {
     if (!selectedNodeId) return null;
@@ -186,7 +376,10 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
   }, [nodes, selectedNodeId]);
 
   const handleNodeSettingsChange = useCallback(
-    (nodeId: string, patch: Partial<SelectedNode> & { config?: Record<string, unknown> | null }) => {
+    (
+      nodeId: string,
+      patch: Partial<SelectedNode> & { config?: Record<string, unknown> | null }
+    ) => {
       setNodes((currentNodes) =>
         currentNodes.map((node) =>
           node.id === nodeId
@@ -210,9 +403,9 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
                   ...(patch.isEnabled !== undefined
                     ? { isEnabled: patch.isEnabled }
                     : {}),
-                    ...(patch.config !== undefined
-                      ? { config: patch.config ?? {} }
-                      : {}),
+                  ...(patch.config !== undefined
+                    ? { config: patch.config ?? {} }
+                    : {}),
                 },
               }
             : node
@@ -234,6 +427,17 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
 
   const savePayload = useMemo(() => buildSavePayload(nodes, edges), [nodes, edges]);
 
+  const latestExecution = liveExecutions[0] ?? null;
+
+  const runtimeStatusByNodeName = useMemo(() => {
+    const entries =
+      latestExecution?.steps?.map((step) => [step.nodeName, step.status] as const) ?? [];
+
+    return Object.fromEntries(entries);
+  }, [latestExecution]);
+
+  
+
   const handleSave = useCallback(async () => {
     try {
       setIsSaving(true);
@@ -249,25 +453,25 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
       if (!response.ok) {
         throw new Error("Failed to save workflow graph");
       }
+
+      setSavedNodeEnabledById(mapSavedNodeEnabled(nodes));
     } catch (error) {
       console.error(error);
       alert("Не удалось сохранить workflow");
     } finally {
       setIsSaving(false);
     }
-  }, [savePayload, workflow.id]);
+  }, [nodes, savePayload, workflow.id]);
 
   const handleRun = useCallback(async () => {
     try {
-      setIsRunning(true);
-
       const response = await fetch(`/api/workflows/${workflow.id}/run`, {
         method: "POST",
       });
 
       const result: {
         success: boolean;
-        data?: WorkflowExecutionResult;
+        data?: LiveExecutionResult;
         message?: string;
         details?: unknown;
       } = await response.json();
@@ -286,12 +490,8 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
         );
       }
 
-      if (!result.data) {
-        throw new Error("Workflow run response does not contain execution data");
-      }
-
-      setLastRunResult(result.data);
       setIsRunResultOpen(true);
+      startExecutionPolling();
     } catch (error) {
       console.error(error);
 
@@ -299,10 +499,30 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
         error instanceof Error ? error.message : "Не удалось выполнить workflow";
 
       alert(message);
-    } finally {
       setIsRunning(false);
     }
-  }, [workflow.id]);
+  }, [startExecutionPolling, workflow.id]);
+
+  useEffect(() => {
+    if (isRunResultOpen || isRunning) {
+      startExecutionPolling();
+      return;
+    }
+  
+    stopExecutionPolling();
+  }, [isRunResultOpen, isRunning, startExecutionPolling, stopExecutionPolling]);
+
+  useEffect(() => {
+    if (liveExecutions.length > 0 && isRunning) {
+      setIsRunResultOpen(true);
+    }
+  }, [liveExecutions, isRunning]);
+  
+  useEffect(() => {
+    void fetchLiveExecutions();
+  }, [fetchLiveExecutions]);
+
+  const showScheduleWarning = hasSavedActiveSchedule;
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -324,6 +544,13 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
         </div>
 
         <div className="flex items-center gap-3">
+          {hasUnsavedScheduleChanges ? (
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-amber-200">
+              <span className="inline-block h-2 w-2 rounded-full bg-amber-300" />
+              Unsaved schedule changes
+            </div>
+          ) : null}
+
           <button
             type="button"
             onClick={handleRun}
@@ -338,15 +565,18 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
             Run workflow
           </button>
 
-          {lastRunResult && !isRunResultOpen && (
-            <button
-              type="button"
-              onClick={() => setIsRunResultOpen(true)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/15"
-            >
-              Show last run
-            </button>
-          )}
+          {!isRunResultOpen && (liveExecutions.length > 0 || hasSavedActiveSchedule) && (
+  <button
+    type="button"
+    onClick={() => {
+      setIsRunResultOpen(true);
+      void fetchLiveExecutions();
+    }}
+    className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/15"
+  >
+    Show live runs
+  </button>
+)}
 
           <button
             type="button"
@@ -364,6 +594,20 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
         </div>
       </div>
 
+      {showScheduleWarning ? (
+        <div className="border-b border-amber-400/10 bg-amber-400/5 px-4 py-3">
+          <div className="flex items-start gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-amber-100">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+            <div>
+              <div className="text-sm font-medium">Schedule is active</div>
+              <div className="mt-1 text-xs text-amber-100/80">
+                Workflow can continue running in real time. Pause schedule before switching tabs if you do not want background executions.
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex h-full min-h-0">
         <NodePalette onAddNode={handleAddNodeRequest} />
 
@@ -378,67 +622,106 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
               onEdgesChangeControlled={handleEdgesChange}
               onSelectNode={handleSelectNode}
               selectedNodeId={selectedNodeId}
+              savedNodeEnabledById={savedNodeEnabledById}
+              runtimeStatusByNodeName={runtimeStatusByNodeName}
+              showScheduleActiveIndicator={hasSavedActiveSchedule}
             />
           </div>
 
-          {lastRunResult && isRunResultOpen && (
-            <div className="max-h-[320px] overflow-y-auto border-t border-white/10 bg-[#08101d] p-4">
+          {liveExecutions.length > 0 && isRunResultOpen && (
+            <div className="max-h-80 overflow-y-auto border-t border-white/10 bg-[#08101d] p-4">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">
-                    Last run result
+                    Live runs history
                   </p>
                   <h3 className="mt-1 text-lg font-semibold text-white">
-                    Status: {lastRunResult.status}
+                    {latestExecution ? (
+                      <>
+                        Current status:{" "}
+                        <span className={getRunStatusTone(latestExecution.status)}>
+                          {latestExecution.status}
+                        </span>
+                      </>
+                    ) : (
+                      "No active runs"
+                    )}
                   </h3>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70">
-                    Duration: {lastRunResult.durationMs ?? 0} ms
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsRunResultOpen(false)}
-                    className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-white/75 transition hover:bg-white/10 hover:text-white"
-                  >
-                    Close
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRunResultOpen(false)}
+                  className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-white/75 transition hover:bg-white/10 hover:text-white"
+                >
+                  Close
+                </button>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h4 className="mb-3 text-sm font-semibold text-white">Steps</h4>
-                  <div className="space-y-2">
-                  {(lastRunResult.steps ?? []).map((step) => (
-                      <div
-                        key={step.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-white/10 px-3 py-2"
-                      >
-                        <span className="text-sm text-white/75">{step.nodeName}</span>
-                        <span className="text-sm text-emerald-300">
-                          {step.status} · {step.durationMs ?? 0} ms
-                        </span>
+              <div className="space-y-4">
+                {liveExecutions.map((execution) => (
+                  <div
+                    key={execution.executionId ?? `${execution.triggerType}-${execution.updatedAt}`}
+                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                  >
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
+                        Execution: {execution.executionId ?? "unknown"}
                       </div>
-                    ))}
-                  </div>
-                </div>
 
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h4 className="mb-3 text-sm font-semibold text-white">Logs</h4>
-                  <div className="space-y-2">
-                  {(lastRunResult.logs ?? []).map((log) => (
-                      <div
-                        key={log.id}
-                        className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/75"
-                      >
-                        [{log.level}] {log.message}
+                      {execution.triggerType ? (
+                        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
+                          Trigger: {execution.triggerType}
+                        </div>
+                      ) : null}
+
+                      <div className={`rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs ${getRunStatusTone(execution.status)}`}>
+                        Status: {execution.status}
                       </div>
-                    ))}
+
+                      <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
+                        {getRelativeUpdatedLabel(execution.updatedAt, nowMs)}
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
+                        Duration: {execution.durationMs ?? 0} ms
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      <div className="rounded-2xl border border-white/10 bg-[#0b1728]/60 p-4">
+                        <h4 className="mb-3 text-sm font-semibold text-white">Steps</h4>
+                        <div className="space-y-2">
+                          {(execution.steps ?? []).map((step) => (
+                            <div
+                              key={step.id}
+                              className="flex items-center justify-between gap-3 rounded-xl border border-white/10 px-3 py-2"
+                            >
+                              <span className="text-sm text-white/75">{step.nodeName}</span>
+                              <span className={`text-sm ${getStepStatusTone(step.status)}`}>
+                                {step.status} · {step.durationMs ?? 0} ms
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/10 bg-[#0b1728]/60 p-4">
+                        <h4 className="mb-3 text-sm font-semibold text-white">Logs</h4>
+                        <div className="space-y-2">
+                          {(execution.logs ?? []).map((log) => (
+                            <div
+                              key={log.id}
+                              className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/75"
+                            >
+                              [{log.level}] {log.message}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
           )}

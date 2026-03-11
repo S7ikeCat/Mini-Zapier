@@ -16,7 +16,7 @@ import {
   type NodeChange,
   type EdgeChange,
 } from "@xyflow/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "@xyflow/react/dist/style.css";
 
 import { WorkflowNode } from "./workflow-node";
@@ -32,6 +32,9 @@ type WorkflowNodeData = {
   retryDelayMs: number;
   timeoutMs: number | null;
   isEnabled: boolean;
+  savedIsEnabled?: boolean;
+  runtimeStatus?: string | null;
+  showScheduleActive?: boolean;
 };
 
 type WorkflowCanvasNode = Node<WorkflowNodeData>;
@@ -46,6 +49,9 @@ interface WorkflowCanvasProps {
   onEdgesChangeControlled: (edges: WorkflowCanvasEdge[]) => void;
   onSelectNode: (nodeId: string | null) => void;
   selectedNodeId: string | null;
+  savedNodeEnabledById: Record<string, boolean>;
+  runtimeStatusByNodeName: Record<string, string>;
+  showScheduleActiveIndicator: boolean;
 }
 
 const nodeTypes: NodeTypes = {
@@ -61,6 +67,9 @@ function WorkflowCanvasInner({
   onEdgesChangeControlled,
   onSelectNode,
   selectedNodeId,
+  savedNodeEnabledById,
+  runtimeStatusByNodeName,
+  showScheduleActiveIndicator,
 }: WorkflowCanvasProps) {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
@@ -145,6 +154,9 @@ function WorkflowCanvasInner({
         retryDelayMs: 0,
         timeoutMs: null,
         isEnabled: true,
+        savedIsEnabled: true,
+        runtimeStatus: null,
+        showScheduleActive: false,
       },
       draggable: true,
       selectable: true,
@@ -201,13 +213,35 @@ function WorkflowCanvasInner({
     selectedNodeId,
   ]);
 
+  const renderedNodes = useMemo(
+    () =>
+      nodes.map((node) => ({
+        ...node,
+        selected: selectedNodeId === node.id,
+        data: {
+          ...node.data,
+          savedIsEnabled: savedNodeEnabledById[node.id] ?? node.data.isEnabled,
+          runtimeStatus: runtimeStatusByNodeName[node.data.label] ?? null,
+          showScheduleActive:
+            node.data.type === "SCHEDULE" &&
+            (savedNodeEnabledById[node.id] ?? node.data.isEnabled) === true &&
+            showScheduleActiveIndicator,
+        },
+      })),
+    [nodes, selectedNodeId, savedNodeEnabledById, runtimeStatusByNodeName, showScheduleActiveIndicator]
+  );
+
   return (
-    <div className="h-full w-full overflow-hidden bg-[#07111f]">
+    <div className="relative h-full w-full overflow-hidden bg-[#07111f]">
+      {showScheduleActiveIndicator ? (
+        <div className="pointer-events-none absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200 shadow-[0_12px_30px_rgba(16,185,129,0.12)]">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.9)]" />
+          Schedule active!
+        </div>
+      ) : null}
+
       <ReactFlow
-        nodes={nodes.map((node) => ({
-          ...node,
-          selected: selectedNodeId === node.id,
-        }))}
+        nodes={renderedNodes}
         edges={edges.map((edge) => ({
           ...edge,
           selected: selectedEdgeId === edge.id,

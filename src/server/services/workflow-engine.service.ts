@@ -27,6 +27,34 @@ type RunNodeInput = {
   context: WorkflowExecutionContext;
 };
 
+function isSelfWebhookCall(
+  url: string,
+  source: string
+): boolean {
+  if (!source.startsWith("webhook:")) {
+    return false;
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    const sourcePath = source.replace("webhook:", "").trim();
+    const targetPath = parsedUrl.pathname.replace(/^\/api\/hooks\//, "").trim();
+
+    const isLocalhost =
+      parsedUrl.hostname === "localhost" ||
+      parsedUrl.hostname === "127.0.0.1";
+
+    return (
+      isLocalhost &&
+      parsedUrl.pathname.startsWith("/api/hooks/") &&
+      targetPath.length > 0 &&
+      targetPath === sourcePath
+    );
+  } catch {
+    return false;
+  }
+}
+
 export class WorkflowEngineService {
   static async run(input: RunWorkflowInput) {
     const workflow = await prisma.workflow.findUnique({
@@ -342,9 +370,15 @@ export class WorkflowEngineService {
       case "HTTP": {
         const method = String(config.method ?? "GET").toUpperCase();
         const url = String(config.url ?? "");
-
+      
         if (!url) {
           throw new Error(`HTTP node "${node.name}" is missing URL`);
+        }
+      
+        if (isSelfWebhookCall(url, context.trigger.source)) {
+          throw new Error(
+            `HTTP node "${node.name}" attempted to call its own webhook endpoint: ${url}`
+          );
         }
 
         const body = config.body;

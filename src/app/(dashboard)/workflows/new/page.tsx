@@ -1,13 +1,5 @@
-import { redirect } from "next/navigation";
-import { prisma } from "@/shared/lib/prisma";
+import { NewWorkflowForm } from "@/features/workflow/new-workflow-form";
 
-export default async function NewWorkflowPage() {
-  const workflow = await prisma.workflow.create({
-    data: {
-      name: "New workflow",
-      status: "DRAFT",
-    },
-  });
-
-  redirect(`/workflows/${workflow.id}`);
+export default function NewWorkflowPage() {
+  return <NewWorkflowForm />;
 }

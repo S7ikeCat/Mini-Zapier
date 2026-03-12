@@ -1,6 +1,8 @@
 "use client";
 
+import { Eye, EyeOff } from "lucide-react";
 import type { ChangeEvent, ReactNode } from "react";
+import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { CronExpressionParser } from "cron-parser";
 
@@ -129,12 +131,17 @@ export function NodeSettingsPanel({
   onChange,
   onDelete,
 }: NodeSettingsPanelProps) {
+
+  const [showBotToken, setShowBotToken] = useState(false);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   if (!node) {
     return null;
   }
 
   const config =
     node.config && typeof node.config === "object" ? node.config : {};
+
+ 
 
   const patchConfig = (patch: Record<string, unknown>) => {
     onChange(node.id, {
@@ -181,6 +188,103 @@ export function NodeSettingsPanel({
     });
   };
 
+  const renderEmailSettings = () => {
+    const smtpHost = getConfigString(node.config, "smtpHost");
+    const smtpPort = getConfigString(node.config, "smtpPort", "587");
+    const smtpUser = getConfigString(node.config, "smtpUser");
+    const smtpPass = getConfigString(node.config, "smtpPass");
+    const to = getConfigString(node.config, "to");
+    const subject = getConfigString(node.config, "subject");
+    const text = getConfigString(
+      node.config,
+      "text",
+      "Workflow notification"
+    );
+  
+    return (
+      <>
+        <Field label="SMTP host">
+          <input
+            value={smtpHost}
+            onChange={(e) => patchConfig({ smtpHost: e.target.value })}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+            placeholder="smtp.gmail.com"
+          />
+        </Field>
+  
+        <Field label="SMTP port">
+          <input
+            value={smtpPort}
+            onChange={(e) => patchConfig({ smtpPort: e.target.value })}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+            placeholder="587"
+          />
+        </Field>
+  
+        <Field label="SMTP user">
+          <input
+            value={smtpUser}
+            onChange={(e) => patchConfig({ smtpUser: e.target.value })}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+            placeholder="Your@example.com"
+          />
+        </Field>
+  
+        <Field label="SMTP password">
+          <div className="flex gap-2">
+            <input
+              type={showSmtpPassword ? "text" : "password"}
+              value={smtpPass}
+              onChange={(e) => patchConfig({ smtpPass: e.target.value })}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              placeholder="Пароль приложения Google"
+            />
+  
+            <button
+              type="button"
+              onClick={() => setShowSmtpPassword((prev) => !prev)}
+              className="inline-flex h-[48px] w-[48px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10"
+            >
+              {showSmtpPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        </Field>
+  
+        <Field label="To">
+          <input
+            value={to}
+            onChange={(e) => patchConfig({ to: e.target.value })}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+            placeholder="Your@example.com"
+          />
+        </Field>
+  
+        <Field label="Subject">
+          <input
+            value={subject}
+            onChange={(e) => patchConfig({ subject: e.target.value })}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+            placeholder="Тема письма"
+          />
+        </Field>
+  
+        <Field label="Message">
+          <textarea
+            value={text}
+            onChange={(e) => patchConfig({ text: e.target.value })}
+            rows={6}
+            className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+            placeholder="Текст письма"
+          />
+        </Field>
+      </>
+    );
+  };
+
   const renderScheduleSettings = () => {
     const cron = getConfigString(node.config, "cron", "* * * * *");
     const detectedTimezone =
@@ -209,6 +313,8 @@ export function NodeSettingsPanel({
     };
   
     const isPaused = node.isEnabled === false;
+
+    
   
     return (
       <>
@@ -491,31 +597,89 @@ export function NodeSettingsPanel({
   };
 
   const renderTelegramSettings = () => {
+    const botToken = getConfigString(node.config, "botToken");
+    const botUsername = getConfigString(node.config, "botUsername");
     const chatId = getConfigString(node.config, "chatId");
     const text = getConfigString(
       node.config,
       "text",
       "Workflow notification"
     );
-
+  
+    const cleanUsername = botUsername.replace(/^@/, "");
+  
     return (
       <>
+        <Field label="Bot token">
+          <div className="flex gap-2">
+            <input
+              type={showBotToken ? "text" : "password"}
+              value={botToken}
+              onChange={(e) => patchConfig({ botToken: e.target.value })}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              placeholder="Telegram bot token"
+            />
+  
+            <button
+              type="button"
+              onClick={() => setShowBotToken(!showBotToken)}
+              className="inline-flex h-[48px] w-[48px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10"
+            >
+              {showBotToken ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        </Field>
+  
+        <Field label="Bot username">
+          <input
+            value={botUsername}
+            onChange={(e) => patchConfig({ botUsername: e.target.value })}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+            placeholder="MiZapierbot"
+          />
+        </Field>
+  
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+          <p className="text-xs uppercase tracking-[0.15em] text-white/45">
+            Bot link
+          </p>
+  
+          {cleanUsername ? (
+            <a
+              href={`https://t.me/${cleanUsername}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 block text-sm text-cyan-300 hover:text-cyan-200"
+            >
+              https://t.me/{cleanUsername}
+            </a>
+          ) : (
+            <p className="mt-2 text-sm text-white/35">
+              Enter bot username to generate link
+            </p>
+          )}
+        </div>
+  
         <Field label="Chat ID">
           <input
             value={chatId}
             onChange={(e) => patchConfig({ chatId: e.target.value })}
             className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
-            placeholder="123456789"
+            placeholder="816249570"
           />
         </Field>
-
+  
         <Field label="Message">
           <textarea
             value={text}
             onChange={(e) => patchConfig({ text: e.target.value })}
             rows={6}
             className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
-            placeholder="Workflow failed: {{payload.email}}"
+            placeholder="Workflow notification"
           />
         </Field>
       </>
@@ -584,6 +748,7 @@ export function NodeSettingsPanel({
 
           {node.type === "WEBHOOK" && renderWebhookSettings()}
           {node.type === "HTTP" && renderHttpSettings()}
+          {node.type === "EMAIL" && renderEmailSettings()}
           {node.type === "TELEGRAM" && renderTelegramSettings()}
           {node.type === "TRANSFORM" && renderTransformSettings()}
           {node.type === "SCHEDULE" && renderScheduleSettings()}

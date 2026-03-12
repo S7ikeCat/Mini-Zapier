@@ -1,5 +1,5 @@
 import { prisma } from "@/shared/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { Prisma, type WorkflowNode } from "@prisma/client";
 
 type SaveWorkflowGraphInput = {
   workflowId: string;
@@ -26,6 +26,40 @@ type SaveWorkflowGraphInput = {
   }>;
   canvas?: Record<string, unknown>;
 };
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function getString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isActiveTriggerNode(node: WorkflowNode): boolean {
+  if (node.kind !== "TRIGGER" || node.isEnabled !== true) {
+    return false;
+  }
+
+  const config = asRecord(node.config);
+
+  switch (node.type) {
+    case "WEBHOOK":
+      return getString(config.path).length > 0;
+
+    case "SCHEDULE":
+      return getString(config.cron).length > 0;
+
+    case "EMAIL":
+      return true;
+
+    default:
+      return false;
+  }
+}
 
 export class WorkflowGraphService {
   static async saveGraph(input: SaveWorkflowGraphInput) {
@@ -80,10 +114,18 @@ export class WorkflowGraphService {
         });
       }
 
+      const savedNodes = await tx.workflowNode.findMany({
+        where: { workflowId: input.workflowId },
+      });
+
+      const hasActiveTrigger = savedNodes.some(isActiveTriggerNode);
+
       await tx.workflow.update({
         where: { id: input.workflowId },
         data: {
           canvas: (input.canvas ?? {}) as Prisma.InputJsonValue,
+          isEnabled: hasActiveTrigger,
+          status: hasActiveTrigger ? "ACTIVE" : "DRAFT",
         },
       });
 

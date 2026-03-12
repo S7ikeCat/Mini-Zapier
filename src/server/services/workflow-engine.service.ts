@@ -5,8 +5,12 @@ import {
   LogLevel,
   StepStatus,
   TriggerType,
+  type WorkflowEdge,
   type WorkflowNode,
 } from "@prisma/client";
+
+import nodemailer from "nodemailer";
+import type { SentMessageInfo } from "nodemailer";
 import { createExecutionContext } from "@/server/lib/workflow-context";
 import type { WorkflowExecutionContext } from "@/server/lib/workflow-context";
 import { resolveObjectTemplates } from "@/server/lib/workflow-value";
@@ -54,7 +58,19 @@ function isSelfWebhookCall(
     return false;
   }
 }
+function resolveStringValue(
+  value: unknown,
+  context: WorkflowExecutionContext,
+  fallback = ""
+): string {
+  if (typeof value !== "string") {
+    return fallback;
+  }
 
+  const resolved = resolveValue(value, context);
+
+  return typeof resolved === "string" ? resolved : fallback;
+}
 export class WorkflowEngineService {
   static async run(input: RunWorkflowInput) {
     const workflow = await prisma.workflow.findUnique({
@@ -72,9 +88,16 @@ export class WorkflowEngineService {
     }
 
     const executionContext = createExecutionContext({
-      triggerType: input.triggerType === "WEBHOOK" ? "WEBHOOK" : "MANUAL",
+      triggerType: this.resolveContextTriggerType(input),
       source: input.source,
       payload: input.payload,
+    });
+
+    const executionPlan = this.buildExecutionPlan({
+      nodes: workflow.nodes,
+      edges: workflow.edges,
+      triggerType: input.triggerType,
+      source: input.source,
     });
 
     const execution = await prisma.execution.create({
@@ -89,11 +112,7 @@ export class WorkflowEngineService {
     });
 
     try {
-      for (const node of workflow.nodes) {
-        if (!node.isEnabled) {
-          continue;
-        }
-
+      for (const node of executionPlan) {
         await this.runNode({
           executionId: execution.id,
           node,
@@ -162,6 +181,201 @@ export class WorkflowEngineService {
       throw error;
     }
   }
+
+
+  private static isManualSource(source: string): boolean {
+    return source === "editor/manual-run";
+  }
+
+  private static resolveContextTriggerType(input: RunWorkflowInput): WorkflowExecutionContext["trigger"]["type"] {
+    if (this.isManualSource(input.source)) {
+      return "MANUAL";
+    }
+
+    switch (input.triggerType) {
+      case TriggerType.WEBHOOK:
+        return "WEBHOOK";
+      case TriggerType.SCHEDULE:
+        return "SCHEDULE";
+      case TriggerType.EMAIL:
+        return "EMAIL";
+      default:
+        return "MANUAL";
+    }
+  }
+
+  private static getTriggerNodeType(triggerType: TriggerType): string {
+    switch (triggerType) {
+      case TriggerType.WEBHOOK:
+        return "WEBHOOK";
+      case TriggerType.SCHEDULE:
+        return "SCHEDULE";
+      case TriggerType.EMAIL:
+        return "EMAIL";
+      default:
+        return "WEBHOOK";
+    }
+  }
+
+  private static sortNodes(nodes: WorkflowNode[]): WorkflowNode[] {
+    return [...nodes].sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) {
+        return a.sortOrder - b.sortOrder;
+      }
+
+      if (a.positionY !== b.positionY) {
+        return a.positionY - b.positionY;
+      }
+
+      if (a.positionX !== b.positionX) {
+        return a.positionX - b.positionX;
+      }
+
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  private static buildExecutionPlan(params: {
+    nodes: WorkflowNode[];
+    edges: WorkflowEdge[];
+    triggerType: TriggerType;
+    source: string;
+  }): WorkflowNode[] {
+    const enabledNodes = params.nodes.filter((node) => node.isEnabled);
+    if (enabledNodes.length === 0) {
+      return [];
+    }
+
+    const enabledNodeIds = new Set(enabledNodes.map((node) => node.id));
+    const enabledEdges = params.edges.filter(
+      (edge) =>
+        enabledNodeIds.has(edge.sourceNodeId) &&
+        enabledNodeIds.has(edge.targetNodeId)
+    );
+
+    const nodeMap = new Map(enabledNodes.map((node) => [node.id, node]));
+    const incomingMap = new Map<string, string[]>();
+    const outgoingMap = new Map<string, string[]>();
+
+    for (const node of enabledNodes) {
+      incomingMap.set(node.id, []);
+      outgoingMap.set(node.id, []);
+    }
+
+    for (const edge of enabledEdges) {
+      incomingMap.get(edge.targetNodeId)?.push(edge.sourceNodeId);
+      outgoingMap.get(edge.sourceNodeId)?.push(edge.targetNodeId);
+    }
+
+    const isManualRun = this.isManualSource(params.source);
+    const triggerNodeType = this.getTriggerNodeType(params.triggerType);
+
+    const triggerStartNodes = enabledNodes.filter((node) => {
+      if (node.kind !== "TRIGGER") {
+        return false;
+      }
+
+      if (isManualRun) {
+        return true;
+      }
+
+      return node.type === triggerNodeType;
+    });
+
+    const rootNodes = enabledNodes.filter((node) => {
+      const incoming = incomingMap.get(node.id) ?? [];
+      return incoming.length === 0;
+    });
+
+
+    
+    const startNodes = triggerStartNodes.length > 0 ? triggerStartNodes : rootNodes;
+    const reachableNodeIds = new Set<string>();
+    const queue: string[] = this.sortNodes(startNodes).map((node) => node.id);
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      if (!currentId || reachableNodeIds.has(currentId)) {
+        continue;
+      }
+
+      reachableNodeIds.add(currentId);
+
+      for (const nextId of outgoingMap.get(currentId) ?? []) {
+        if (!reachableNodeIds.has(nextId)) {
+          queue.push(nextId);
+        }
+      }
+    }
+
+    const reachableNodes = enabledNodes.filter((node) => reachableNodeIds.has(node.id));
+    if (reachableNodes.length === 0) {
+      return [];
+    }
+
+    const reachableIncomingCount = new Map<string, number>();
+    for (const node of reachableNodes) {
+      const incoming = (incomingMap.get(node.id) ?? []).filter((sourceId) =>
+        reachableNodeIds.has(sourceId)
+      );
+      reachableIncomingCount.set(node.id, incoming.length);
+    }
+    
+    const ready: WorkflowNode[] = this.sortNodes(
+      reachableNodes.filter((node) => (reachableIncomingCount.get(node.id) ?? 0) === 0)
+    );
+
+    const ordered: WorkflowNode[] = [];
+
+    while (ready.length > 0) {
+      const current = ready.shift();
+      if (!current) {
+        continue;
+      }
+
+      ordered.push(current);
+
+      for (const nextId of outgoingMap.get(current.id) ?? []) {
+        if (!reachableNodeIds.has(nextId)) {
+          continue;
+        }
+
+        const nextCount = (reachableIncomingCount.get(nextId) ?? 0) - 1;
+        reachableIncomingCount.set(nextId, nextCount);
+
+        if (nextCount === 0) {
+          const nextNode = nodeMap.get(nextId);
+          if (nextNode) {
+            ready.push(nextNode);
+            ready.sort((a, b) => {
+              if (a.sortOrder !== b.sortOrder) {
+                return a.sortOrder - b.sortOrder;
+              }
+
+              if (a.positionY !== b.positionY) {
+                return a.positionY - b.positionY;
+              }
+
+              if (a.positionX !== b.positionX) {
+                return a.positionX - b.positionX;
+              }
+
+              return a.name.localeCompare(b.name);
+            });
+          }
+        }
+      }
+    }
+
+    if (ordered.length !== reachableNodes.length) {
+      throw new Error(
+        "Workflow graph contains a cycle or invalid dependency chain"
+      );
+    }
+
+    return ordered;
+  }
+
 
   private static async runNode(input: RunNodeInput) {
     const { executionId, node, context } = input;
@@ -336,6 +550,8 @@ export class WorkflowEngineService {
     }
   }
 
+  
+
   private static async executeNode(
     node: WorkflowNode,
     context: WorkflowExecutionContext
@@ -428,24 +644,35 @@ export class WorkflowEngineService {
       }
 
       case "TELEGRAM": {
-        const token = process.env.TELEGRAM_BOT_TOKEN;
-        const chatId =
-          String(config.chatId ?? "") || process.env.TELEGRAM_DEFAULT_CHAT_ID;
-        const text = String(config.text ?? "Workflow notification");
-
-        if (!token || !chatId) {
-          const mockOutput = {
+        const config = node.config as Record<string, unknown>;
+      
+        const configuredBotToken =
+          typeof config.botToken === "string" && config.botToken.trim().length > 0
+            ? config.botToken.trim()
+            : null;
+      
+        const configuredChatId =
+          typeof config.chatId === "string" && config.chatId.trim().length > 0
+            ? config.chatId.trim()
+            : null;
+      
+        const text =
+          typeof config.text === "string" && config.text.trim().length > 0
+            ? resolveValue(config.text, context)
+            : "Workflow notification";
+      
+        const botToken = configuredBotToken ?? process.env.TELEGRAM_BOT_TOKEN ?? null;
+        const chatId = configuredChatId ?? process.env.TELEGRAM_DEFAULT_CHAT_ID ?? null;
+      
+        if (!botToken || !chatId) {
+          return {
             simulated: true,
-            reason: "Telegram env vars are not configured",
-            text,
+            reason: "Telegram bot token or chat id is not configured",
           };
-
-          context.variables[node.id] = mockOutput;
-          return mockOutput;
         }
-
+      
         const response = await fetch(
-          `https://api.telegram.org/bot${token}/sendMessage`,
+          `https://api.telegram.org/bot${botToken}/sendMessage`,
           {
             method: "POST",
             headers: {
@@ -457,27 +684,91 @@ export class WorkflowEngineService {
             }),
           }
         );
-
-        const json = (await response.json()) as Record<string, unknown>;
-
-        if (!response.ok) {
-          throw new Error(`Telegram node "${node.name}" failed`);
+      
+        const result = (await response.json()) as Record<string, unknown>;
+      
+        if (!response.ok || result.ok !== true) {
+          throw new Error(
+            typeof result.description === "string"
+              ? result.description
+              : "Telegram API request failed"
+          );
         }
-
-        context.variables[node.id] = json;
-        return json;
+      
+        return result;
       }
 
       case "EMAIL": {
-        const output = {
-          simulated: true,
-          reason: "Email execution is not configured yet",
+       
+      
+        const config = node.config as Record<string, unknown>;
+      
+        const smtpHost =
+          typeof config.smtpHost === "string" && config.smtpHost.trim().length > 0
+            ? config.smtpHost.trim()
+            : null;
+      
+        const smtpUser =
+          typeof config.smtpUser === "string" && config.smtpUser.trim().length > 0
+            ? config.smtpUser.trim()
+            : null;
+      
+        const smtpPass =
+          typeof config.smtpPass === "string" && config.smtpPass.trim().length > 0
+            ? config.smtpPass.trim()
+            : null;
+      
+        const to =
+          typeof config.to === "string" && config.to.trim().length > 0
+            ? config.to.trim()
+            : null;
+      
+        const subject =
+          typeof config.subject === "string" && config.subject.trim().length > 0
+            ? config.subject.trim()
+            : "Workflow notification";
+      
+        const text =
+          typeof config.text === "string" && config.text.trim().length > 0
+            ? config.text
+            : "Workflow notification";
+      
+        const smtpPort =
+          typeof config.smtpPort === "string" && config.smtpPort.trim().length > 0
+            ? Number(config.smtpPort.trim())
+            : 587;
+      
+        if (!smtpHost || !smtpUser || !smtpPass || !to || Number.isNaN(smtpPort)) {
+          return {
+            simulated: true,
+            reason: "Email SMTP config is incomplete",
+          };
+        }
+      
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: false,
+          auth: {
+            user: smtpUser,
+            pass: smtpPass,
+          },
+        });
+      
+        const result = await transporter.sendMail({
+          from: smtpUser,
+          to,
+          subject,
+          text,
+        });
+      
+        return {
+          messageId: result.messageId,
+          accepted: result.accepted,
+          rejected: result.rejected,
+          response: result.response,
         };
-
-        context.variables[node.id] = output;
-        return output;
       }
-
       default: {
         const output = {
           skipped: true,
@@ -489,4 +780,8 @@ export class WorkflowEngineService {
       }
     }
   }
+}
+
+function resolveValue(text: string, context: WorkflowExecutionContext) {
+  
 }

@@ -27,20 +27,21 @@ export default function HomePage() {
               </p>
 
               <div className="mt-10 flex flex-wrap gap-4">
-                <Link
-                  href="/dashboard"
-                  className="inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3 font-medium text-slate-900 transition hover:scale-[1.02]"
-                >
-                  Открыть платформу
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-
-                <Link
-                  href="/workflows"
-                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-6 py-3 font-medium text-white/90 backdrop-blur transition hover:bg-white/10"
-                >
-                  Смотреть workflows
-                </Link>
+              <Link
+  href="/dashboard"
+  className="
+    relative z-20 inline-flex items-center gap-2
+    px-6 py-3 rounded-xl
+    bg-white text-black font-medium
+    shadow-md
+    transition-colors duration-200 ease-out
+    hover:bg-gray-300
+    active:bg-gray-200
+  "
+>
+  <span>Открыть платформу</span>
+  <ArrowRight className="h-4 w-4 transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
+</Link>
               </div>
             </div>
 

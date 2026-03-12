@@ -58,6 +58,20 @@ const nodeTypes: NodeTypes = {
   workflowNode: WorkflowNode,
 };
 
+function hasActiveSavedSchedule(node: WorkflowCanvasNode, savedNodeEnabledById: Record<string, boolean>): boolean {
+  if (node.data.type !== "SCHEDULE") {
+    return false;
+  }
+
+  const savedEnabled = savedNodeEnabledById[node.id] ?? node.data.isEnabled;
+  const cron =
+    typeof node.data.config?.cron === "string"
+      ? node.data.config.cron.trim()
+      : "";
+
+  return savedEnabled === true && cron.length > 0;
+}
+
 function WorkflowCanvasInner({
   nodes,
   edges,
@@ -223,9 +237,8 @@ function WorkflowCanvasInner({
           savedIsEnabled: savedNodeEnabledById[node.id] ?? node.data.isEnabled,
           runtimeStatus: runtimeStatusByNodeName[node.data.label] ?? null,
           showScheduleActive:
-            node.data.type === "SCHEDULE" &&
-            (savedNodeEnabledById[node.id] ?? node.data.isEnabled) === true &&
-            showScheduleActiveIndicator,
+  hasActiveSavedSchedule(node, savedNodeEnabledById) &&
+  showScheduleActiveIndicator,
         },
       })),
     [nodes, selectedNodeId, savedNodeEnabledById, runtimeStatusByNodeName, showScheduleActiveIndicator]

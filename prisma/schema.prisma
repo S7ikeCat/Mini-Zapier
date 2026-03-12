@@ -225,6 +225,19 @@ model ExecutionLog {
   @@index([executionId, level])
 }
 
+model TelegramIntegration {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  botToken        String
+  defaultChatId   String?
+  botUsername     String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
+
 model Notification {
   id          String           @id @default(cuid())
   type        NotificationType @default(INFO)

@@ -1,7 +1,16 @@
 "use client";
 
+import { TelegramIntegrationModal } from "./telegram-integration-modal";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Loader2, Play, Save, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  Play,
+  Save,
+  AlertTriangle,
+  Plus,
+  Settings,
+} from "lucide-react";
 import type { Edge, Node } from "@xyflow/react";
 import type { WorkflowWithGraph } from "@/shared/types/workflow-graph";
 import { NodePalette, type PaletteItemData } from "./node-palette";
@@ -62,6 +71,21 @@ type LiveExecutionResult = WorkflowExecutionResult & {
   triggerType?: string;
   updatedAt?: string;
 };
+
+
+
+const SUGGESTED_TAGS = [
+  "sales",
+  "webhook",
+  "crm",
+  "email",
+  "schedule",
+  "telegram",
+  "database",
+  "transform",
+  "marketing",
+  "internal",
+];
 
 function mapWorkflowToCanvasNodes(
   workflow: WorkflowWithGraph
@@ -136,7 +160,9 @@ function buildSavePayload(
   };
 }
 
-function mapSavedNodeEnabled(nodes: WorkflowCanvasNode[]): Record<string, boolean> {
+function mapSavedNodeEnabled(
+  nodes: WorkflowCanvasNode[]
+): Record<string, boolean> {
   return Object.fromEntries(nodes.map((node) => [node.id, node.data.isEnabled]));
 }
 
@@ -170,6 +196,23 @@ function getRunStatusTone(status: string): string {
   }
 }
 
+function isScheduleNodeActive(node: WorkflowCanvasNode): boolean {
+  if (node.data.type !== "SCHEDULE") {
+    return false;
+  }
+
+  if ((node.data.isEnabled ?? true) !== true) {
+    return false;
+  }
+
+  const cron =
+    typeof node.data.config?.cron === "string"
+      ? node.data.config.cron.trim()
+      : "";
+
+  return cron.length > 0;
+}
+
 function getScheduleSnapshot(nodes: WorkflowCanvasNode[]): string {
   const scheduleNodes = nodes
     .filter((node) => node.data.type === "SCHEDULE")
@@ -178,12 +221,13 @@ function getScheduleSnapshot(nodes: WorkflowCanvasNode[]): string {
       isEnabled: node.data.isEnabled ?? true,
       cron:
         typeof node.data.config?.cron === "string"
-          ? node.data.config.cron
+          ? node.data.config.cron.trim()
           : "",
       timezone:
         typeof node.data.config?.timezone === "string"
-          ? node.data.config.timezone
+          ? node.data.config.timezone.trim()
           : "",
+      active: isScheduleNodeActive(node),
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
 
@@ -229,26 +273,48 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
   const [edges, setEdges] = useState<WorkflowCanvasEdge[]>(
     mapWorkflowToCanvasEdges(workflow)
   );
-  const [savedNodeEnabledById, setSavedNodeEnabledById] = useState<Record<string, boolean>>(
-    () => mapSavedNodeEnabled(mapWorkflowToCanvasNodes(workflow))
-  );
+  const [savedNodeEnabledById, setSavedNodeEnabledById] = useState<
+    Record<string, boolean>
+  >(() => mapSavedNodeEnabled(mapWorkflowToCanvasNodes(workflow)));
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isRunResultOpen, setIsRunResultOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [liveExecutions, setLiveExecutions] = useState<LiveExecutionResult[]>([]);
+  const [liveExecutions, setLiveExecutions] = useState<LiveExecutionResult[]>(
+    []
+  );
   const [nowMs, setNowMs] = useState<number>(Date.now());
+  const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
+  const [isMetaModalOpen, setIsMetaModalOpen] = useState(false);
+
+  const [workflowName, setWorkflowName] = useState(workflow.name);
+  const [workflowDescription, setWorkflowDescription] = useState(
+    workflow.description ?? ""
+  );
+  const [workflowTags, setWorkflowTags] = useState<string[]>(
+    Array.isArray(workflow.tags) ? workflow.tags : []
+  );
+  const [tagInput, setTagInput] = useState("");
+  const [isSavingMeta, setIsSavingMeta] = useState(false);
 
   const pollingRef = useRef<number | null>(null);
   const clockRef = useRef<number | null>(null);
 
   const hasSavedActiveSchedule = useMemo(
     () =>
-      nodes.some(
-        (node) =>
-          node.data.type === "SCHEDULE" &&
-          (savedNodeEnabledById[node.id] ?? node.data.isEnabled) === true
-      ),
+      nodes.some((node) => {
+        if (node.data.type !== "SCHEDULE") {
+          return false;
+        }
+
+        const savedEnabled = savedNodeEnabledById[node.id] ?? node.data.isEnabled;
+        const savedCron =
+          typeof node.data.config?.cron === "string"
+            ? node.data.config.cron.trim()
+            : "";
+
+        return savedEnabled === true && savedCron.length > 0;
+      }),
     [nodes, savedNodeEnabledById]
   );
 
@@ -258,8 +324,6 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
       pollingRef.current = null;
     }
   }, []);
-
-  
 
   const fetchLiveExecutions = useCallback(async () => {
     const response = await fetch(`/api/workflows/${workflow.id}/executions-live`, {
@@ -283,11 +347,15 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
       (execution) =>
         execution.status === "RUNNING" || execution.status === "RETRYING"
     );
-
+    
     if (!hasActiveExecution) {
       setIsRunning(false);
+    
+      if (!isRunResultOpen) {
+        stopExecutionPolling();
+      }
     }
-  }, [workflow.id]);
+  }, [isRunResultOpen, stopExecutionPolling, workflow.id]);
 
   const startExecutionPolling = useCallback(() => {
     if (pollingRef.current !== null) {
@@ -425,22 +493,74 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
     setSelectedNodeId((currentId) => (currentId === nodeId ? null : currentId));
   }, []);
 
+  const addTag = useCallback((rawTag: string) => {
+    const normalized = rawTag.trim().replace(/^#/, "").toLowerCase();
+
+    if (!normalized) {
+      return;
+    }
+
+    setWorkflowTags((prev) =>
+      prev.includes(normalized) ? prev : [...prev, normalized]
+    );
+    setTagInput("");
+  }, []);
+
+  const removeTag = useCallback((tagToRemove: string) => {
+    setWorkflowTags((prev) => prev.filter((tag) => tag !== tagToRemove));
+  }, []);
+
+  const handleTagKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter" || event.key === ",") {
+        event.preventDefault();
+        addTag(tagInput);
+      }
+    },
+    [addTag, tagInput]
+  );
+
+  const saveWorkflowMeta = useCallback(async () => {
+    setIsSavingMeta(true);
+
+    try {
+      const response = await fetch(`/api/workflows/${workflow.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: workflowName.trim(),
+          description: workflowDescription.trim(),
+          tags: workflowTags,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Не удалось сохранить метаданные workflow");
+      }
+    } finally {
+      setIsSavingMeta(false);
+    }
+  }, [workflow.id, workflowDescription, workflowName, workflowTags]);
+
   const savePayload = useMemo(() => buildSavePayload(nodes, edges), [nodes, edges]);
 
   const latestExecution = liveExecutions[0] ?? null;
 
   const runtimeStatusByNodeName = useMemo(() => {
     const entries =
-      latestExecution?.steps?.map((step) => [step.nodeName, step.status] as const) ?? [];
+      latestExecution?.steps?.map((step) => [step.nodeName, step.status] as const) ??
+      [];
 
     return Object.fromEntries(entries);
   }, [latestExecution]);
 
-  
-
   const handleSave = useCallback(async () => {
     try {
       setIsSaving(true);
+
+      await saveWorkflowMeta();
 
       const response = await fetch(`/api/workflows/${workflow.id}/graph`, {
         method: "PUT",
@@ -461,10 +581,12 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
     } finally {
       setIsSaving(false);
     }
-  }, [nodes, savePayload, workflow.id]);
+  }, [nodes, savePayload, saveWorkflowMeta, workflow.id]);
 
   const handleRun = useCallback(async () => {
     try {
+      setIsRunning(true);
+
       const response = await fetch(`/api/workflows/${workflow.id}/run`, {
         method: "POST",
       });
@@ -504,12 +626,17 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
   }, [startExecutionPolling, workflow.id]);
 
   useEffect(() => {
-    if (isRunResultOpen || isRunning) {
+    const shouldPoll = isRunResultOpen || isRunning;
+  
+    if (shouldPoll) {
       startExecutionPolling();
-      return;
+    } else {
+      stopExecutionPolling();
     }
   
-    stopExecutionPolling();
+    return () => {
+      stopExecutionPolling();
+    };
   }, [isRunResultOpen, isRunning, startExecutionPolling, stopExecutionPolling]);
 
   useEffect(() => {
@@ -517,16 +644,15 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
       setIsRunResultOpen(true);
     }
   }, [liveExecutions, isRunning]);
-  
-  useEffect(() => {
-    void fetchLiveExecutions();
-  }, [fetchLiveExecutions]);
+
+
 
   const showScheduleWarning = hasSavedActiveSchedule;
 
   return (
+    <>
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b border-white/10 bg-[#08101d] px-4 py-3 ">
+      <div className="flex items-center justify-between border-b border-white/10 bg-[#08101d] px-4 py-3">
         <div className="flex items-center gap-4">
           <Link
             href="/workflows"
@@ -534,15 +660,17 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
-
+  
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">
               Workflow Editor
             </p>
-            <h1 className="text-lg font-semibold text-white">{workflow.name}</h1>
+            <h1 className="text-lg font-semibold text-white">
+              {workflowName || "Workflow editor"}
+            </h1>
           </div>
         </div>
-
+  
         <div className="flex items-center gap-3">
           {hasUnsavedScheduleChanges ? (
             <div className="inline-flex items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-amber-200">
@@ -550,7 +678,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
               Unsaved schedule changes
             </div>
           ) : null}
-
+  
           <button
             type="button"
             onClick={handleRun}
@@ -564,24 +692,26 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
             )}
             Run workflow
           </button>
-
+  
           {!isRunResultOpen && (liveExecutions.length > 0 || hasSavedActiveSchedule) && (
-  <button
-    type="button"
-    onClick={() => {
-      setIsRunResultOpen(true);
-      void fetchLiveExecutions();
-    }}
-    className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/15"
-  >
-    Show live runs
-  </button>
-)}
-
+            <button
+              type="button"
+              onClick={() => {
+                setIsRunResultOpen(true);
+                void fetchLiveExecutions();
+              }}
+              className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/15"
+            >
+              Show live runs
+            </button>
+          )}
+  
+          
+  
           <button
             type="button"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || isSavingMeta}
             className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? (
@@ -591,9 +721,19 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
             )}
             Save workflow
           </button>
+
+          <button
+            type="button"
+            onClick={() => setIsMetaModalOpen(true)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white/75 transition hover:bg-white/15 hover:text-white"
+            aria-label="Открыть настройки workflow"
+            title="Настройки workflow"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
         </div>
       </div>
-
+  
       {showScheduleWarning ? (
         <div className="border-b border-amber-400/10 bg-amber-400/5 px-4 py-3">
           <div className="flex items-start gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-amber-100">
@@ -607,10 +747,10 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
           </div>
         </div>
       ) : null}
-
+  
       <div className="flex h-full min-h-0">
         <NodePalette onAddNode={handleAddNodeRequest} />
-
+  
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1">
             <WorkflowCanvas
@@ -627,7 +767,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
               showScheduleActiveIndicator={hasSavedActiveSchedule}
             />
           </div>
-
+  
           {liveExecutions.length > 0 && isRunResultOpen && (
             <div className="max-h-80 overflow-y-auto border-t border-white/10 bg-[#08101d] p-4">
               <div className="mb-4 flex items-start justify-between gap-4">
@@ -648,7 +788,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
                     )}
                   </h3>
                 </div>
-
+  
                 <button
                   type="button"
                   onClick={() => setIsRunResultOpen(false)}
@@ -657,37 +797,44 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
                   Close
                 </button>
               </div>
-
+  
               <div className="space-y-4">
                 {liveExecutions.map((execution) => (
                   <div
-                    key={execution.executionId ?? `${execution.triggerType}-${execution.updatedAt}`}
+                    key={
+                      execution.executionId ??
+                      `${execution.triggerType}-${execution.updatedAt}`
+                    }
                     className="rounded-2xl border border-white/10 bg-white/5 p-4"
                   >
                     <div className="mb-3 flex flex-wrap items-center gap-2">
                       <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
                         Execution: {execution.executionId ?? "unknown"}
                       </div>
-
+  
                       {execution.triggerType ? (
                         <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
                           Trigger: {execution.triggerType}
                         </div>
                       ) : null}
-
-                      <div className={`rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs ${getRunStatusTone(execution.status)}`}>
+  
+                      <div
+                        className={`rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs ${getRunStatusTone(
+                          execution.status
+                        )}`}
+                      >
                         Status: {execution.status}
                       </div>
-
+  
                       <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
                         {getRelativeUpdatedLabel(execution.updatedAt, nowMs)}
                       </div>
-
+  
                       <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
                         Duration: {execution.durationMs ?? 0} ms
                       </div>
                     </div>
-
+  
                     <div className="grid gap-4 xl:grid-cols-2">
                       <div className="rounded-2xl border border-white/10 bg-[#0b1728]/60 p-4">
                         <h4 className="mb-3 text-sm font-semibold text-white">Steps</h4>
@@ -697,15 +844,19 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
                               key={step.id}
                               className="flex items-center justify-between gap-3 rounded-xl border border-white/10 px-3 py-2"
                             >
-                              <span className="text-sm text-white/75">{step.nodeName}</span>
-                              <span className={`text-sm ${getStepStatusTone(step.status)}`}>
+                              <span className="text-sm text-white/75">
+                                {step.nodeName}
+                              </span>
+                              <span
+                                className={`text-sm ${getStepStatusTone(step.status)}`}
+                              >
                                 {step.status} · {step.durationMs ?? 0} ms
                               </span>
                             </div>
                           ))}
                         </div>
                       </div>
-
+  
                       <div className="rounded-2xl border border-white/10 bg-[#0b1728]/60 p-4">
                         <h4 className="mb-3 text-sm font-semibold text-white">Logs</h4>
                         <div className="space-y-2">
@@ -726,7 +877,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
             </div>
           )}
         </div>
-
+  
         <NodeSettingsPanel
           node={selectedNode}
           onChange={handleNodeSettingsChange}
@@ -734,5 +885,135 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
         />
       </div>
     </div>
+  
+    {isMetaModalOpen ? (
+      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+        <div className="w-full max-w-3xl rounded-[28px] border border-white/10 bg-[#08101d] shadow-2xl">
+          <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">
+                Workflow settings
+              </p>
+              <h2 className="mt-1 text-xl font-semibold text-white">
+                Настройки workflow
+              </h2>
+            </div>
+  
+            <button
+              type="button"
+              onClick={() => setIsMetaModalOpen(false)}
+              className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-white/75 transition hover:bg-white/10 hover:text-white"
+            >
+              Закрыть
+            </button>
+          </div>
+  
+          <div className="space-y-5 px-6 py-6">
+            <div>
+              <label className="mb-2 block text-xs font-medium uppercase tracking-[0.15em] text-white/45">
+                Название workflow
+              </label>
+              <input
+                value={workflowName}
+                onChange={(event) => setWorkflowName(event.target.value)}
+                placeholder="Название workflow"
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              />
+            </div>
+  
+            <div>
+              <label className="mb-2 block text-xs font-medium uppercase tracking-[0.15em] text-white/45">
+                Описание
+              </label>
+              <textarea
+                value={workflowDescription}
+                onChange={(event) => setWorkflowDescription(event.target.value)}
+                placeholder="Коротко опиши, что делает workflow"
+                rows={4}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              />
+            </div>
+  
+            <div>
+              <label className="mb-2 block text-xs font-medium uppercase tracking-[0.15em] text-white/45">
+                Хештеги
+              </label>
+  
+              <div className="mb-3 flex flex-wrap gap-2">
+                {workflowTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200 transition hover:bg-cyan-400/15"
+                  >
+                    #{tag} ×
+                  </button>
+                ))}
+              </div>
+  
+              <div className="flex gap-2">
+                <input
+                  value={tagInput}
+                  onChange={(event) => setTagInput(event.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder="Введи тег"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+                />
+                <button
+                  type="button"
+                  onClick={() => addTag(tagInput)}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/15"
+                >
+                  <Plus className="h-4 w-4" />
+                  Добавить
+                </button>
+              </div>
+  
+              <div className="mt-3 flex flex-wrap gap-2">
+                {SUGGESTED_TAGS.map((tag) => {
+                  const isSelected = workflowTags.includes(tag);
+  
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => addTag(tag)}
+                      disabled={isSelected}
+                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      #{tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+  
+          <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
+            <button
+              type="button"
+              onClick={() => setIsMetaModalOpen(false)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white/75 transition hover:bg-white/10 hover:text-white"
+            >
+              Отмена
+            </button>
+  
+            <button
+              type="button"
+              onClick={async () => {
+                await saveWorkflowMeta();
+                setIsMetaModalOpen(false);
+              }}
+              disabled={isSavingMeta || workflowName.trim().length < 2}
+              className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSavingMeta ? "Сохранение..." : "Сохранить"}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+  </>
   );
 }

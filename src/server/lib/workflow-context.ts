@@ -1,6 +1,6 @@
 export type WorkflowExecutionContext = {
     trigger: {
-      type: "WEBHOOK" | "SCHEDULE" | "EMAIL" | "MANUAL";
+      type: "WEBHOOK" | "SCHEDULE" | "EMAIL" | "MANUAL" | "EMAIL_TRIGGER";
       source: string;
     };
     payload: Record<string, unknown>;

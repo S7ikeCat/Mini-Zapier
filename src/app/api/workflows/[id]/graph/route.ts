@@ -13,19 +13,28 @@ type GraphNodeInput = {
 };
 
 function getWebhookPathsFromNodes(nodes: GraphNodeInput[]): string[] {
-  return nodes
-    .filter((node) => node.kind === "TRIGGER" && node.type === "WEBHOOK")
-    .map((node) => {
-      const path =
-        typeof node.config?.path === "string" ? node.config.path.trim() : "";
+  const uniquePaths = new Set<string>();
 
-      return {
-        path,
-        isEnabled: node.isEnabled,
-      };
-    })
-    .filter((item) => item.isEnabled && item.path.length > 0)
-    .map((item) => item.path);
+  for (const node of nodes) {
+    if (node.kind !== "TRIGGER" || node.type !== "WEBHOOK") {
+      continue;
+    }
+
+    if (node.isEnabled !== true) {
+      continue;
+    }
+
+    const rawPath =
+      typeof node.config?.path === "string" ? node.config.path.trim() : "";
+
+    if (!rawPath) {
+      continue;
+    }
+
+    uniquePaths.add(rawPath);
+  }
+
+  return Array.from(uniquePaths);
 }
 
 /**
@@ -54,16 +63,29 @@ export async function PUT(
     const body = await request.json();
     const data = saveWorkflowGraphSchema.parse(body);
 
+    const webhookPaths = getWebhookPathsFromNodes(
+      data.nodes as GraphNodeInput[]
+    );
+
+    for (const path of webhookPaths) {
+      const existingByPath = await prisma.webhookEndpoint.findUnique({
+        where: { path },
+      });
+
+      if (existingByPath && existingByPath.workflowId !== id) {
+        return errorResponse(
+          `Webhook path "${path}" is already used by another workflow`,
+          409
+        );
+      }
+    }
+
     const result = await WorkflowGraphService.saveGraph({
       workflowId: id,
       nodes: data.nodes,
       edges: data.edges,
       canvas: data.canvas,
     });
-
-    const webhookPaths = getWebhookPathsFromNodes(
-      data.nodes as GraphNodeInput[]
-    );
 
     const existingEndpoints = await prisma.webhookEndpoint.findMany({
       where: {
@@ -89,17 +111,6 @@ export async function PUT(
     }
 
     for (const path of webhookPaths) {
-      const existingByPath = await prisma.webhookEndpoint.findUnique({
-        where: { path },
-      });
-
-      if (existingByPath && existingByPath.workflowId !== id) {
-        return errorResponse(
-          `Webhook path "${path}" is already used by another workflow`,
-          409
-        );
-      }
-
       await prisma.webhookEndpoint.upsert({
         where: { path },
         update: {

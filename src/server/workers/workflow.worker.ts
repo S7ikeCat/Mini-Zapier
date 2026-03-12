@@ -38,6 +38,10 @@ workflowWorker.on("ready", () => {
   });
 });
 
+workflowWorker.on("error", (error) => {
+  console.error("Workflow worker error", error);
+});
+
 workflowWorker.on("failed", (job, error) => {
   console.error(`Workflow job failed: ${job?.id}`, error);
 });

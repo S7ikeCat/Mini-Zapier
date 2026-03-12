@@ -202,7 +202,7 @@ export class WorkflowEngineService {
       case TriggerType.SCHEDULE:
         return "SCHEDULE";
       case TriggerType.EMAIL:
-        return "EMAIL";
+        return "EMAIL_TRIGGER";
       default:
         return "MANUAL";
     }
@@ -583,28 +583,9 @@ export class WorkflowEngineService {
             ? (config.mapping as Record<string, unknown>)
             : {};
       
-        const payload = context.payload as Record<string, unknown>;
-      
-        const result: Record<string, unknown> = {};
-      
-        for (const [key, value] of Object.entries(mapping)) {
-          if (typeof value === "string") {
-            const match = value.match(/\{\{\s*payload\.(\w+)\s*\}\}/);
-      
-            if (match) {
-              const field = match[1];
-              result[key] = payload[field];
-            } else {
-              result[key] = value;
-            }
-          } else {
-            result[key] = value;
-          }
-        }
+        const result: Record<string, unknown> = { ...mapping };
       
         context.variables[node.id] = result;
-      
-        // 🔥 самое важное
         context.payload = result;
       
         return result;
@@ -658,10 +639,6 @@ export class WorkflowEngineService {
       }
 
       case "DATABASE": {
-
-      
-        const config = node.config as Record<string, unknown>;
-      
         const connectionString =
           typeof config.connectionString === "string" &&
           config.connectionString.trim().length > 0
@@ -674,10 +651,13 @@ export class WorkflowEngineService {
             : null;
       
         if (!connectionString || !query) {
-          return {
+          const output = {
             simulated: true,
             reason: "Database connection string or query is missing",
           };
+      
+          context.variables[node.id] = output;
+          return output;
         }
       
         const client = new Client({
@@ -689,19 +669,20 @@ export class WorkflowEngineService {
         try {
           const result = await client.query(query);
       
-          return {
+          const output = {
             rowCount: result.rowCount ?? 0,
             rows: result.rows,
             command: result.command,
           };
+      
+          context.variables[node.id] = output;
+          return output;
         } finally {
           await client.end();
         }
       }
 
       case "TELEGRAM": {
-        const config = node.config as Record<string, unknown>;
-      
         const configuredBotToken =
           typeof config.botToken === "string" && config.botToken.trim().length > 0
             ? config.botToken.trim()
@@ -713,9 +694,7 @@ export class WorkflowEngineService {
             : null;
       
         const rawText =
-          typeof config.text === "string" && config.text.trim().length > 0
-            ? config.text
-            : "Workflow notification";
+          typeof config.text === "string" ? config.text : "Workflow notification";
       
         const text = resolveStringValue(rawText, context, rawText).trim();
       
@@ -732,20 +711,25 @@ export class WorkflowEngineService {
           text,
           config,
         });
-       
       
         if (!botToken || !chatId) {
-          return {
+          const output = {
             simulated: true,
             reason: "Telegram bot token or chat id is not configured",
           };
+      
+          context.variables[node.id] = output;
+          return output;
         }
       
         if (!text) {
-          return {
+          const output = {
             simulated: true,
             reason: "Telegram message text is empty",
           };
+      
+          context.variables[node.id] = output;
+          return output;
         }
       
         const response = await fetch(
@@ -771,20 +755,18 @@ export class WorkflowEngineService {
               : "Telegram API request failed"
           );
         }
+      
         console.log("TELEGRAM DEBUG SOURCE", {
           text,
           payload: context.payload,
           config,
         });
       
+        context.variables[node.id] = result;
         return result;
       }
 
       case "EMAIL": {
-       
-      
-        const config = node.config as Record<string, unknown>;
-      
         const smtpHost =
           typeof config.smtpHost === "string" && config.smtpHost.trim().length > 0
             ? config.smtpHost.trim()
@@ -821,10 +803,13 @@ export class WorkflowEngineService {
             : 587;
       
         if (!smtpHost || !smtpUser || !smtpPass || !to || Number.isNaN(smtpPort)) {
-          return {
+          const output = {
             simulated: true,
             reason: "Email SMTP config is incomplete",
           };
+      
+          context.variables[node.id] = output;
+          return output;
         }
       
         const transporter = nodemailer.createTransport({
@@ -844,12 +829,15 @@ export class WorkflowEngineService {
           text,
         });
       
-        return {
+        const output = {
           messageId: result.messageId,
           accepted: result.accepted,
           rejected: result.rejected,
           response: result.response,
         };
+      
+        context.variables[node.id] = output;
+        return output;
       }
 
       case "EMAIL_TRIGGER": {

@@ -133,6 +133,7 @@ export function NodeSettingsPanel({
 }: NodeSettingsPanelProps) {
 
   const [showBotToken, setShowBotToken] = useState(false);
+  const [showConnectionString, setShowConnectionString] = useState(false);
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   if (!node) {
     return null;
@@ -186,6 +187,42 @@ export function NodeSettingsPanel({
     onChange(node.id, {
       isEnabled: e.target.checked,
     });
+  };
+
+  const renderEmailTriggerSettings = () => {
+    const fromFilter = getConfigString(node.config, "fromFilter");
+    const subjectContains = getConfigString(node.config, "subjectContains");
+  
+    return (
+      <>
+        <Field label="Accept from">
+          <input
+            value={fromFilter}
+            onChange={(e) => patchConfig({ fromFilter: e.target.value })}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+            placeholder="client@example.com"
+          />
+        </Field>
+  
+        <Field label="Subject contains">
+          <input
+            value={subjectContains}
+            onChange={(e) => patchConfig({ subjectContains: e.target.value })}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+            placeholder="Lead"
+          />
+        </Field>
+  
+        <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-[0.15em] text-cyan-300/80">
+            Inbound endpoint
+          </p>
+          <code className="mt-2 block break-all text-sm text-cyan-100">
+            POST /api/inbound/email
+          </code>
+        </div>
+      </>
+    );
   };
 
   const renderEmailSettings = () => {
@@ -279,6 +316,78 @@ export function NodeSettingsPanel({
             rows={6}
             className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
             placeholder="Текст письма"
+          />
+        </Field>
+      </>
+    );
+  };
+
+  const renderDatabaseSettings = () => {
+    const provider = getConfigString(node.config, "provider", "postgres");
+    const connectionString = getConfigString(node.config, "connectionString");
+    const query = getConfigString(node.config, "query");
+    const mode = getConfigString(node.config, "mode", "select");
+  
+    return (
+      <>
+        <Field label="Database type">
+          <select
+            value={provider}
+            onChange={(e) => patchConfig({ provider: e.target.value })}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+          >
+            <option value="postgres" className="bg-[#08101d]">
+              PostgreSQL
+            </option>
+          </select>
+        </Field>
+  
+        <Field label="Mode">
+          <select
+            value={mode}
+            onChange={(e) => patchConfig({ mode: e.target.value })}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+          >
+            <option value="select" className="bg-[#08101d]">
+              Select
+            </option>
+            <option value="execute" className="bg-[#08101d]">
+              Execute
+            </option>
+          </select>
+        </Field>
+  
+        <Field label="Connection string">
+          <div className="flex gap-2">
+            <input
+              type={showConnectionString ? "text" : "password"}
+              value={connectionString}
+              onChange={(e) => patchConfig({ connectionString: e.target.value })}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              placeholder="postgresql://user:password@host:5432/dbname"
+            />
+  
+            <button
+              type="button"
+              onClick={() => setShowConnectionString((prev) => !prev)}
+              className="inline-flex h-[48px] w-[48px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10"
+            >
+              {showConnectionString ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        </Field>
+  
+        <Field label="SQL query">
+          <textarea
+            value={query}
+            onChange={(e) => patchConfig({ query: e.target.value })}
+            rows={8}
+            className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm text-white outline-none placeholder:text-white/25"
+            placeholder={`SELECT NOW() AS current_time;`}
           />
         </Field>
       </>
@@ -749,7 +858,9 @@ export function NodeSettingsPanel({
           {node.type === "WEBHOOK" && renderWebhookSettings()}
           {node.type === "HTTP" && renderHttpSettings()}
           {node.type === "EMAIL" && renderEmailSettings()}
+          {node.type === "EMAIL_TRIGGER" && renderEmailTriggerSettings()}
           {node.type === "TELEGRAM" && renderTelegramSettings()}
+          {node.type === "DATABASE" && renderDatabaseSettings()}
           {node.type === "TRANSFORM" && renderTransformSettings()}
           {node.type === "SCHEDULE" && renderScheduleSettings()}
 

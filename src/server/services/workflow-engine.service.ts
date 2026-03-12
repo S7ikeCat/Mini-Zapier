@@ -11,9 +11,13 @@ import {
 
 import nodemailer from "nodemailer";
 import type { SentMessageInfo } from "nodemailer";
+import { Client } from "pg";
 import { createExecutionContext } from "@/server/lib/workflow-context";
 import type { WorkflowExecutionContext } from "@/server/lib/workflow-context";
-import { resolveObjectTemplates } from "@/server/lib/workflow-value";
+import {
+  resolveObjectTemplates,
+  resolveTemplate,
+} from "@/server/lib/workflow-value";
 import { sleep, withTimeout } from "@/server/lib/async-utils";
 import { getErrorMessage } from "@/server/lib/error-utils";
 import { WorkflowNotificationService } from "./workflow-notification.service";
@@ -211,7 +215,7 @@ export class WorkflowEngineService {
       case TriggerType.SCHEDULE:
         return "SCHEDULE";
       case TriggerType.EMAIL:
-        return "EMAIL";
+        return "EMAIL_TRIGGER";
       default:
         return "WEBHOOK";
     }
@@ -578,9 +582,32 @@ export class WorkflowEngineService {
           config.mapping && typeof config.mapping === "object"
             ? (config.mapping as Record<string, unknown>)
             : {};
-
-        context.variables[node.id] = mapping;
-        return mapping;
+      
+        const payload = context.payload as Record<string, unknown>;
+      
+        const result: Record<string, unknown> = {};
+      
+        for (const [key, value] of Object.entries(mapping)) {
+          if (typeof value === "string") {
+            const match = value.match(/\{\{\s*payload\.(\w+)\s*\}\}/);
+      
+            if (match) {
+              const field = match[1];
+              result[key] = payload[field];
+            } else {
+              result[key] = value;
+            }
+          } else {
+            result[key] = value;
+          }
+        }
+      
+        context.variables[node.id] = result;
+      
+        // 🔥 самое важное
+        context.payload = result;
+      
+        return result;
       }
 
       case "HTTP": {
@@ -631,16 +658,45 @@ export class WorkflowEngineService {
       }
 
       case "DATABASE": {
-        const operation = String(config.operation ?? "log");
 
-        const output = {
-          operation,
-          stored: true,
-          at: new Date().toISOString(),
-        };
-
-        context.variables[node.id] = output;
-        return output;
+      
+        const config = node.config as Record<string, unknown>;
+      
+        const connectionString =
+          typeof config.connectionString === "string" &&
+          config.connectionString.trim().length > 0
+            ? config.connectionString.trim()
+            : null;
+      
+        const query =
+          typeof config.query === "string" && config.query.trim().length > 0
+            ? config.query.trim()
+            : null;
+      
+        if (!connectionString || !query) {
+          return {
+            simulated: true,
+            reason: "Database connection string or query is missing",
+          };
+        }
+      
+        const client = new Client({
+          connectionString,
+        });
+      
+        await client.connect();
+      
+        try {
+          const result = await client.query(query);
+      
+          return {
+            rowCount: result.rowCount ?? 0,
+            rows: result.rows,
+            command: result.command,
+          };
+        } finally {
+          await client.end();
+        }
       }
 
       case "TELEGRAM": {
@@ -656,18 +712,39 @@ export class WorkflowEngineService {
             ? config.chatId.trim()
             : null;
       
-        const text =
+        const rawText =
           typeof config.text === "string" && config.text.trim().length > 0
-            ? resolveValue(config.text, context)
+            ? config.text
             : "Workflow notification";
       
-        const botToken = configuredBotToken ?? process.env.TELEGRAM_BOT_TOKEN ?? null;
-        const chatId = configuredChatId ?? process.env.TELEGRAM_DEFAULT_CHAT_ID ?? null;
+        const text = resolveStringValue(rawText, context, rawText).trim();
+      
+        const botToken =
+          configuredBotToken ?? process.env.TELEGRAM_BOT_TOKEN ?? null;
+      
+        const chatId =
+          configuredChatId ?? process.env.TELEGRAM_DEFAULT_CHAT_ID ?? null;
+      
+        console.log("TELEGRAM DEBUG", {
+          botTokenExists: Boolean(botToken),
+          chatId,
+          rawText,
+          text,
+          config,
+        });
+       
       
         if (!botToken || !chatId) {
           return {
             simulated: true,
             reason: "Telegram bot token or chat id is not configured",
+          };
+        }
+      
+        if (!text) {
+          return {
+            simulated: true,
+            reason: "Telegram message text is empty",
           };
         }
       
@@ -694,6 +771,11 @@ export class WorkflowEngineService {
               : "Telegram API request failed"
           );
         }
+        console.log("TELEGRAM DEBUG SOURCE", {
+          text,
+          payload: context.payload,
+          config,
+        });
       
         return result;
       }
@@ -769,6 +851,25 @@ export class WorkflowEngineService {
           response: result.response,
         };
       }
+
+      case "EMAIL_TRIGGER": {
+        console.log("EMAIL TRIGGER PAYLOAD:", context.payload);
+      
+        const payload = context.payload as Record<string, unknown>;
+      
+        const from =
+          typeof payload.from === "string" ? payload.from : "";
+      
+        const subject =
+          typeof payload.subject === "string" ? payload.subject : "";
+      
+        return {
+          accepted: true,
+          from,
+          subject,
+          payload
+        };
+      }
       default: {
         const output = {
           skipped: true,
@@ -783,5 +884,5 @@ export class WorkflowEngineService {
 }
 
 function resolveValue(text: string, context: WorkflowExecutionContext) {
-  
+  return resolveTemplate(text, context);
 }

@@ -6,6 +6,7 @@ export type PaletteNodeType =
   | "WEBHOOK"
   | "SCHEDULE"
   | "EMAIL"
+  | "EMAIL_TRIGGER"
   | "HTTP"
   | "TELEGRAM"
   | "DATABASE"
@@ -24,7 +25,7 @@ interface NodePaletteProps {
 const triggerItems: PaletteItemData[] = [
   { kind: "TRIGGER", type: "WEBHOOK", label: "Webhook" },
   { kind: "TRIGGER", type: "SCHEDULE", label: "Schedule" },
-  { kind: "TRIGGER", type: "EMAIL", label: "Email" },
+  { kind: "TRIGGER", type: "EMAIL_TRIGGER", label: "Email" },
 ];
 
 const actionItems: PaletteItemData[] = [

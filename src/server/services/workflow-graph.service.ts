@@ -53,7 +53,7 @@ function isActiveTriggerNode(node: WorkflowNode): boolean {
     case "SCHEDULE":
       return getString(config.cron).length > 0;
 
-    case "EMAIL":
+      case "EMAIL_TRIGGER":
       return true;
 
     default:

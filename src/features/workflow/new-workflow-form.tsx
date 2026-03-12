@@ -3,17 +3,55 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Plus } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, X } from "lucide-react";
+
+const SUGGESTED_TAGS = [
+  "webhook",
+  "telegram",
+  "email",
+  "database",
+  "transform",
+  "notifications",
+  "integration",
+  "automation",
+  "testing",
+  "leads",
+];
 
 export function NewWorkflowForm() {
   const router = useRouter();
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const trimmedName = name.trim();
   const isValid = trimmedName.length >= 3;
+
+  const addTag = (rawTag: string) => {
+    const normalized = rawTag.trim().replace(/^#/, "").toLowerCase();
+
+    if (!normalized) {
+      return;
+    }
+
+    setTags((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
+    setTagInput("");
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setTags((prev) => prev.filter((tag) => tag !== tagToRemove));
+  };
+
+  const handleTagKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      addTag(tagInput);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -36,7 +74,7 @@ export function NewWorkflowForm() {
           description: description.trim() || null,
           status: "DRAFT",
           isEnabled: false,
-          tags: [],
+          tags,
         }),
       });
 
@@ -64,7 +102,7 @@ export function NewWorkflowForm() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
       <div className="flex items-center gap-4">
         <Link
           href="/workflows"
@@ -90,13 +128,11 @@ export function NewWorkflowForm() {
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Например: Lead Capture Pipeline"
+              placeholder="Например: Incoming Webhook Notification"
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
               autoFocus
             />
-            <p className="mt-2 text-xs text-white/45">
-              Минимум 3 символа.
-            </p>
+            <p className="mt-2 text-xs text-white/45">Минимум 3 символа.</p>
           </div>
 
           <div>
@@ -110,6 +146,63 @@ export function NewWorkflowForm() {
               rows={4}
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
             />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.15em] text-white/45">
+              Теги
+            </label>
+
+            <div className="mb-3 flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => removeTag(tag)}
+                  className="inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200 transition hover:bg-cyan-400/15"
+                >
+                  <span>#{tag}</span>
+                  <X className="h-3 w-3" />
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                value={tagInput}
+                onChange={(event) => setTagInput(event.target.value)}
+                onKeyDown={handleTagKeyDown}
+                placeholder="Введи тег и нажми Enter"
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              />
+
+              <button
+                type="button"
+                onClick={() => addTag(tagInput)}
+                className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/15"
+              >
+                <Plus className="h-4 w-4" />
+                Добавить
+              </button>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {SUGGESTED_TAGS.map((tag) => {
+                const isSelected = tags.includes(tag);
+
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => addTag(tag)}
+                    disabled={isSelected}
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    #{tag}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {error ? (

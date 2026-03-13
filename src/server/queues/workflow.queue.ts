@@ -9,10 +9,9 @@ export type WorkflowJobData = {
   payload?: Record<string, unknown>;
 };
 
-export const workflowQueue = new Queue<
-  WorkflowJobData,
-  void,
-  "workflow-run"
->("workflow-execution", {
-  connection: redisConnection,
-});
+export const workflowQueue = new Queue<WorkflowJobData>(
+  "workflow-execution",
+  {
+    connection: redisConnection,
+  }
+);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/lib/prisma";
 import { workflowQueue } from "@/server/queues/workflow.queue";
+import { TriggerType } from "@prisma/client";
 
 export async function POST(
   request: NextRequest,
@@ -36,7 +37,7 @@ export async function POST(
 
     const job = await workflowQueue.add("workflow-run", {
       workflowId: endpoint.workflowId,
-      triggerType: "WEBHOOK",
+      triggerType: TriggerType.WEBHOOK,
       source: `webhook:${path}`,
       payload: body,
     });

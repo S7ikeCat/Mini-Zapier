@@ -843,8 +843,8 @@ export function NodeSettingsPanel({
   };
 
   return (
-    <aside className="h-full w-[300px] shrink-0 border-l border-white/10 bg-[#08101d]">
-      <div className="h-full overflow-y-auto p-4">
+    <aside className="h-full min-h-0 w-[320px] shrink-0 border-l border-white/10 bg-[#08101d]">
+  <div className="h-full min-h-0 overflow-y-auto px-4 py-5">
         <div className="space-y-4">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">

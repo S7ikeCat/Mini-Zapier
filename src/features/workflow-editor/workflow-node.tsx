@@ -42,30 +42,30 @@ function getNodeAccent(type: string) {
 
 function NodeIcon({ type }: { type: string }) {
   if (type === "WEBHOOK") {
-    return <Webhook className="h-5 w-5 text-white" />;
+    return <Webhook className="h-4 w-4 text-white" />;
   }
 
   if (type === "SCHEDULE") {
-    return <Clock3 className="h-5 w-5 text-white" />;
+    return <Clock3 className="h-4 w-4 text-white" />;
   }
 
   if (type === "EMAIL") {
-    return <Mail className="h-5 w-5 text-white" />;
+    return <Mail className="h-4 w-4 text-white" />;
   }
 
   if (type === "HTTP") {
-    return <Send className="h-5 w-5 text-white" />;
+    return <Send className="h-4 w-4 text-white" />;
   }
 
   if (type === "DATABASE") {
-    return <Database className="h-5 w-5 text-white" />;
+    return <Database className="h-4 w-4 text-white" />;
   }
 
   if (type === "TRANSFORM") {
-    return <Shuffle className="h-5 w-5 text-white" />;
+    return <Shuffle className="h-4 w-4 text-white" />;
   }
 
-  return <Webhook className="h-5 w-5 text-white" />;
+  return <Webhook className="h-4 w-4 text-white" />;
 }
 
 function getRuntimeTone(status: string | null | undefined): string {
@@ -97,12 +97,13 @@ export function WorkflowNode({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        "relative min-w-60 rounded-2xl border bg-[#0b1728] shadow-[0_10px_30px_rgba(0,0,0,0.25)] transition",
+        "relative min-w-[220px] rounded-2xl border bg-[#0b1728] shadow-[0_10px_30px_rgba(0,0,0,0.25)] transition",
         "bg-linear-to-br",
         getNodeAccent(nodeData.type),
         selected ? "ring-2 ring-cyan-400/70" : "ring-0",
         isPaused && "opacity-50 ring-1 ring-amber-400/40",
-        isScheduleActive && "shadow-[0_0_0_1px_rgba(52,211,153,0.2),0_0_24px_rgba(16,185,129,0.18)]"
+        isScheduleActive &&
+          "shadow-[0_0_0_1px_rgba(52,211,153,0.2),0_0_24px_rgba(16,185,129,0.18)]"
       )}
     >
       <Handle
@@ -111,22 +112,22 @@ export function WorkflowNode({ data, selected }: NodeProps) {
         className="h-3! w-3! border-2! border-[#07111f]! bg-cyan-300!"
       />
 
-      <div className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/10">
+      <div className="p-3">
+        <div className="flex items-start gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10">
             <NodeIcon type={nodeData.type} />
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">
               {nodeData.kind}
             </p>
-            <h3 className="truncate text-sm font-semibold text-white">
+            <h3 className="truncate text-[13px] font-semibold text-white">
               {nodeData.label}
             </h3>
-            <p className="mt-1 text-xs text-white/55">{nodeData.type}</p>
+            <p className="mt-0.5 text-[11px] text-white/55">{nodeData.type}</p>
 
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
               {isPaused ? (
                 <div className="inline-flex rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-amber-200">
                   Paused

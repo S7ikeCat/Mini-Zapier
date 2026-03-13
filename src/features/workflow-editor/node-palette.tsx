@@ -38,11 +38,11 @@ const actionItems: PaletteItemData[] = [
 
 export function NodePalette({ onAddNode }: NodePaletteProps) {
   return (
-    <div className="h-full w-[240px] shrink-0 overflow-y-auto border-r border-white/10 bg-[#08101d] px-3 py-4">
-      <div className="space-y-4">
+    <div className="h-full w-[200px] shrink-0 overflow-y-auto border-r border-white/10 bg-[#08101d] px-3 py-3">
+      <div className="space-y-3">
         <div>
-        <h2 className="mb-3 text-base font-semibold text-white">Triggers</h2>
-          <div className="space-y-3">
+          <h2 className="mb-2 text-sm font-semibold text-white">Triggers</h2>
+          <div className="space-y-2">
             {triggerItems.map((item) => (
               <PaletteItem
                 key={`${item.kind}-${item.type}`}
@@ -53,9 +53,9 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
           </div>
         </div>
 
-        <div className="pt-6">
-        <h2 className="mb-3 text-base font-semibold text-white">Actions</h2>
-          <div className="space-y-3">
+        <div className="pt-4">
+          <h2 className="mb-2 text-sm font-semibold text-white">Actions</h2>
+          <div className="space-y-2">
             {actionItems.map((item) => (
               <PaletteItem
                 key={`${item.kind}-${item.type}`}
@@ -81,7 +81,7 @@ function PaletteItem({
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-xl border border-white/10 p-3 text-left text-white/80 transition hover:bg-white/5 hover:text-white"
+      className="w-full rounded-xl border border-white/10 px-3 py-2.5 text-left text-sm text-white/80 transition hover:bg-white/5 hover:text-white"
     >
       {label}
     </button>

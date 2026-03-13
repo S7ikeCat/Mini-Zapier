@@ -2,13 +2,17 @@
 
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls,
   MiniMap,
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
-  ReactFlowProvider,
+  useNodesInitialized,
+  useReactFlow,
+  getNodesBounds,
+  getViewportForBounds,
   type Node,
   type Edge,
   type Connection,
@@ -58,7 +62,10 @@ const nodeTypes: NodeTypes = {
   workflowNode: WorkflowNode,
 };
 
-function hasActiveSavedSchedule(node: WorkflowCanvasNode, savedNodeEnabledById: Record<string, boolean>): boolean {
+function hasActiveSavedSchedule(
+  node: WorkflowCanvasNode,
+  savedNodeEnabledById: Record<string, boolean>
+): boolean {
   if (node.data.type !== "SCHEDULE") {
     return false;
   }
@@ -86,6 +93,9 @@ function WorkflowCanvasInner({
   showScheduleActiveIndicator,
 }: WorkflowCanvasProps) {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
+  const { setViewport, getNodes } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
 
   const onNodesChange = useCallback(
     (changes: NodeChange<WorkflowCanvasNode>[]) => {
@@ -163,11 +173,11 @@ function WorkflowCanvasInner({
         kind: pendingNode.kind,
         type: pendingNode.type,
         config:
-  pendingNode.type === "HTTP"
-    ? { method: "POST" }
-    : pendingNode.type === "WEBHOOK"
-      ? { httpStarterOnly: false }
-      : {},
+          pendingNode.type === "HTTP"
+            ? { method: "POST" }
+            : pendingNode.type === "WEBHOOK"
+              ? { httpStarterOnly: false }
+              : {},
         description: null,
         retryLimit: 0,
         retryDelayMs: 0,
@@ -242,12 +252,50 @@ function WorkflowCanvasInner({
           savedIsEnabled: savedNodeEnabledById[node.id] ?? node.data.isEnabled,
           runtimeStatus: runtimeStatusByNodeName[node.data.label] ?? null,
           showScheduleActive:
-  hasActiveSavedSchedule(node, savedNodeEnabledById) &&
-  showScheduleActiveIndicator,
+            hasActiveSavedSchedule(node, savedNodeEnabledById) &&
+            showScheduleActiveIndicator,
         },
       })),
-    [nodes, selectedNodeId, savedNodeEnabledById, runtimeStatusByNodeName, showScheduleActiveIndicator]
+    [
+      nodes,
+      selectedNodeId,
+      savedNodeEnabledById,
+      runtimeStatusByNodeName,
+      showScheduleActiveIndicator,
+    ]
   );
+
+  useEffect(() => {
+    if (!nodesInitialized) {
+      return;
+    }
+
+    const flowNodes = getNodes();
+
+    if (!flowNodes.length) {
+      return;
+    }
+
+    const bounds = getNodesBounds(flowNodes);
+
+    const viewport = getViewportForBounds(
+      bounds,
+      window.innerWidth - 560,
+      window.innerHeight - 220,
+      0.2,
+      1.4,
+      0.28
+    );
+
+    setViewport(
+      {
+        x: viewport.x - 40,
+        y: viewport.y - 10,
+        zoom: viewport.zoom,
+      },
+      { duration: 0 }
+    );
+  }, [nodesInitialized, getNodes, setViewport, renderedNodes.length]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[#07111f]">
@@ -265,7 +313,8 @@ function WorkflowCanvasInner({
           selected: selectedEdgeId === edge.id,
         }))}
         nodeTypes={nodeTypes}
-        fitView
+        minZoom={0.2}
+        maxZoom={1.4}
         nodesDraggable
         nodesConnectable
         elementsSelectable
@@ -280,16 +329,29 @@ function WorkflowCanvasInner({
         <MiniMap
           pannable
           zoomable
-          position="bottom-right"
-          nodeStrokeWidth={3}
-          className="!h-[110px] !w-[160px] !rounded-xl !border !border-white/10 !bg-[#0b1728]/95 !shadow-none"
-          maskColor="rgba(7, 17, 31, 0.72)"
+          nodeBorderRadius={10}
+          nodeStrokeWidth={0.4}
+          maskColor="rgba(7, 17, 31, 0.78)"
+          bgColor="rgba(8, 16, 29, 0.94)"
+          className="!h-[104px] !w-[156px] !rounded-[22px] !border !border-white/10 !bg-[#08101d]/95 !shadow-[0_8px_24px_rgba(0,0,0,0.25)]"
+          nodeColor={(node) => {
+            const type = String(node.data?.type ?? "");
+
+            if (type === "WEBHOOK") return "rgba(34, 211, 238, 0.45)";
+            if (type === "HTTP") return "rgba(16, 185, 129, 0.45)";
+            if (type === "TELEGRAM") return "rgba(148, 163, 184, 0.45)";
+            if (type === "SCHEDULE") return "rgba(168, 85, 247, 0.45)";
+
+            return "rgba(255,255,255,0.25)";
+          }}
         />
+
         <Controls
           position="bottom-left"
           className="!shadow-none"
           showInteractive={false}
         />
+
         <Background gap={20} size={1.15} color="rgba(56, 189, 248, 0.14)" />
       </ReactFlow>
     </div>

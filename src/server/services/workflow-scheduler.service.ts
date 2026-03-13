@@ -62,6 +62,7 @@ export class WorkflowSchedulerService {
     const workflows = await prisma.workflow.findMany({
       where: {
         isEnabled: true,
+        status: "ACTIVE",
       },
       include: {
         nodes: {

@@ -38,7 +38,7 @@ const actionItems: PaletteItemData[] = [
 
 export function NodePalette({ onAddNode }: NodePaletteProps) {
   return (
-    <div className="h-full w-[200px] shrink-0 overflow-y-auto border-r border-white/10 bg-[#08101d] px-3 py-3">
+    <div className="h-full w-[200px] shrink-0 overflow-y-auto overscroll-contain border-r border-white/10 bg-[#08101d] px-3 py-3">
       <div className="space-y-3">
         <div>
           <h2 className="mb-2 text-sm font-semibold text-white">Triggers</h2>

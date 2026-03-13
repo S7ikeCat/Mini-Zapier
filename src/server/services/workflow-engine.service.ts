@@ -76,7 +76,9 @@ function resolveStringValue(
   return typeof resolved === "string" ? resolved : fallback;
 }
 export class WorkflowEngineService {
+
   static async run(input: RunWorkflowInput) {
+    await this.assertWorkflowCanRun(input.workflowId);
     const workflow = await prisma.workflow.findUnique({
       where: { id: input.workflowId },
       include: {
@@ -139,6 +141,8 @@ export class WorkflowEngineService {
 
     try {
       for (const node of executionPlan) {
+        await this.assertWorkflowCanRun(workflow.id);
+
         await this.runNode({
           executionId: execution.id,
           node,
@@ -176,35 +180,68 @@ export class WorkflowEngineService {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown workflow error";
 
+      const isPausedError = errorMessage === "WORKFLOW_PAUSED";
+
       await prisma.execution.update({
         where: { id: execution.id },
         data: {
-          status: ExecutionStatus.FAILED,
+          status: isPausedError ? ExecutionStatus.PAUSED : ExecutionStatus.FAILED,
           finishedAt,
           durationMs:
             finishedAt.getTime() -
             (execution.startedAt?.getTime() ?? finishedAt.getTime()),
-          errorMessage,
+          errorMessage: isPausedError ? "Workflow was paused" : errorMessage,
         },
       });
 
       await prisma.executionLog.create({
         data: {
           executionId: execution.id,
-          level: LogLevel.ERROR,
-          message: errorMessage,
+          level: isPausedError ? LogLevel.WARN : LogLevel.ERROR,
+          message: isPausedError ? "Workflow was paused" : errorMessage,
         },
       });
 
-      await WorkflowNotificationService.notifyFailure({
-        workflowId: workflow.id,
-        workflowName: workflow.name,
-        executionId: execution.id,
-        errorMessage,
-        source: input.source,
-      });
+      if (!isPausedError) {
+        await WorkflowNotificationService.notifyFailure({
+          workflowId: workflow.id,
+          workflowName: workflow.name,
+          executionId: execution.id,
+          errorMessage,
+          source: input.source,
+        });
+      }
 
       throw error;
+    }
+  }
+
+  private static async assertWorkflowCanRun(
+    workflowId: string
+  ): Promise<void> {
+    const workflow = await prisma.workflow.findUnique({
+      where: { id: workflowId },
+      select: {
+        id: true,
+        status: true,
+        isEnabled: true,
+      },
+    });
+
+    if (!workflow) {
+      throw new Error("Workflow not found");
+    }
+
+    if (!workflow.isEnabled) {
+      throw new Error("Workflow is disabled");
+    }
+
+    if (workflow.status === "PAUSED") {
+      throw new Error("WORKFLOW_PAUSED");
+    }
+
+    if (workflow.status === "ARCHIVED") {
+      throw new Error("Workflow is archived");
     }
   }
 

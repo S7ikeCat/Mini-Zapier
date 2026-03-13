@@ -5,12 +5,14 @@ import {
   AlertTriangle,
   ArrowLeft,
   Loader2,
+  Pause,
   Play,
   Plus,
   Save,
   Settings,
 } from "lucide-react";
 import type { Edge, Node } from "@xyflow/react";
+import { WorkflowStatus } from "@prisma/client";
 import Link from "next/link";
 import type { WorkflowWithGraph } from "@/shared/types/workflow-graph";
 import type { WorkflowExecutionResult } from "@/shared/types/workflow-execution";
@@ -266,6 +268,10 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
   const [isMetaModalOpen, setIsMetaModalOpen] = useState(false);
 
   const [workflowName, setWorkflowName] = useState(workflow.name);
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus>(
+    workflow.status
+  );
+  const pausedScheduleStateRef = useRef<Record<string, boolean>>({});
   const [workflowDescription, setWorkflowDescription] = useState(
     workflow.description ?? ""
   );
@@ -275,6 +281,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
   const [tagInput, setTagInput] = useState("");
   const [isSavingMeta, setIsSavingMeta] = useState(false);
   const [isGraphDirty, setIsGraphDirty] = useState(false);
+  
 
   const pollingRef = useRef<number | null>(null);
   const clockRef = useRef<number | null>(null);
@@ -288,6 +295,16 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
     },
     [liveRunsHeight]
   );
+
+  const isScheduleNode = useCallback((node: Node) => {
+    return (
+      node.type === "trigger" &&
+      typeof node.data === "object" &&
+      node.data !== null &&
+      "triggerType" in node.data &&
+      node.data.triggerType === "SCHEDULE"
+    );
+  }, []);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -312,6 +329,10 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
+  }, []);
+
+  const isScheduleCanvasNode = useCallback((node: WorkflowCanvasNode) => {
+    return node.data.type === "SCHEDULE";
   }, []);
 
   const hasSavedActiveSchedule = useMemo(
@@ -580,6 +601,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
   }, [latestExecution]);
 
   const hasUnsavedWorkflowChanges = isGraphDirty;
+  const isWorkflowPaused = workflowStatus === WorkflowStatus.PAUSED;
 
   const handleSave = useCallback(async () => {
     try {
@@ -609,7 +631,128 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
     }
   }, [nodes, savePayload, saveWorkflowMeta, workflow.id]);
 
+  const handleToggleWorkflowPause = useCallback(async () => {
+    try {
+      const nextStatus = isWorkflowPaused
+        ? WorkflowStatus.ACTIVE
+        : WorkflowStatus.PAUSED;
+  
+      const response = await fetch(`/api/workflows/${workflow.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: nextStatus,
+        }),
+      });
+  
+      const result: {
+        success?: boolean;
+        message?: string;
+        details?: unknown;
+      } = await response.json();
+  
+      if (!response.ok || result.success === false) {
+        const detailsMessage =
+          result.details &&
+          typeof result.details === "object" &&
+          "error" in result.details &&
+          typeof (result.details as { error?: unknown }).error === "string"
+            ? (result.details as { error: string }).error
+            : null;
+  
+        throw new Error(
+          detailsMessage ||
+            result.message ||
+            "Не удалось обновить статус workflow"
+        );
+      }
+  
+      if (nextStatus === WorkflowStatus.PAUSED) {
+        const nextPausedScheduleState: Record<string, boolean> = {};
+  
+        setNodes((prevNodes) =>
+          prevNodes.map((node) => {
+            if (!isScheduleCanvasNode(node)) {
+              return node;
+            }
+  
+            nextPausedScheduleState[node.id] = node.data.isEnabled;
+  
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                isEnabled: false,
+              },
+            };
+          })
+        );
+  
+        pausedScheduleStateRef.current = nextPausedScheduleState;
+  
+        setSavedNodeEnabledById((prev) => {
+          const next = { ...prev };
+  
+          for (const nodeId of Object.keys(nextPausedScheduleState)) {
+            next[nodeId] = false;
+          }
+  
+          return next;
+        });
+      } else {
+        const savedScheduleState = pausedScheduleStateRef.current;
+  
+        setNodes((prevNodes) =>
+          prevNodes.map((node) => {
+            if (!isScheduleCanvasNode(node)) {
+              return node;
+            }
+  
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                isEnabled: savedScheduleState[node.id] ?? node.data.isEnabled,
+              },
+            };
+          })
+        );
+  
+        setSavedNodeEnabledById((prev) => {
+          const next = { ...prev };
+  
+          for (const [nodeId, enabled] of Object.entries(savedScheduleState)) {
+            next[nodeId] = enabled;
+          }
+  
+          return next;
+        });
+  
+        pausedScheduleStateRef.current = {};
+      }
+  
+      setWorkflowStatus(nextStatus);
+    } catch (error) {
+      console.error(error);
+  
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Не удалось обновить статус workflow";
+  
+      alert(message);
+    }
+  }, [isScheduleCanvasNode, isWorkflowPaused, workflow.id]);
+  
+
   const handleRun = useCallback(async () => {
+    if (isWorkflowPaused) {
+      alert("Workflow is paused");
+      return;
+    }
+
     try {
       setIsRunning(true);
       
@@ -685,7 +828,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
       alert(message);
       setIsRunning(false);
     }
-  }, [nodes, savePayload, saveWorkflowMeta, startExecutionPolling, workflow.id]);
+  }, [isWorkflowPaused, nodes, savePayload, saveWorkflowMeta, startExecutionPolling, workflow.id]);
 
   useEffect(() => {
     const shouldPoll = isRunResultOpen || isRunning;
@@ -707,7 +850,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
     }
   }, [liveExecutions, isRunning]);
 
-  const showScheduleWarning = hasSavedActiveSchedule;
+  const showScheduleWarning = hasSavedActiveSchedule && !isWorkflowPaused;
 
   return (
     <>
@@ -739,10 +882,23 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
               </div>
             ) : null}
 
+<button
+              type="button"
+              onClick={handleToggleWorkflowPause}
+              className={`inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 text-[13px] font-medium transition ${
+                isWorkflowPaused
+                  ? "border border-amber-400/20 bg-amber-400/10 text-amber-200 hover:bg-amber-400/15"
+                  : "border border-white/10 bg-white/10 text-white/80 hover:bg-white/15 hover:text-white"
+              }`}
+            >
+              <Pause className="h-4 w-4" />
+              {isWorkflowPaused ? "Resume workflow" : "Pause workflow"}
+            </button>
+
             <button
               type="button"
               onClick={handleRun}
-              disabled={isRunning}
+              disabled={isRunning || isWorkflowPaused}
               className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-3.5 py-2 text-[13px] font-medium text-emerald-200 transition hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isRunning ? (
@@ -750,7 +906,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
               ) : (
                 <Play className="h-4 w-4" />
               )}
-              Run workflow
+              {isWorkflowPaused ? "Workflow paused" : "Run workflow"}
             </button>
 
             <button
@@ -804,10 +960,10 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
           </div>
         ) : null}
 
-        <div className="flex min-h-0 flex-1 overflow-hidden">
+<div className="flex h-full min-h-0 flex-1 overflow-hidden">
           <NodePalette onAddNode={handleAddNodeRequest} />
 
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="min-h-0 flex-1 overflow-hidden">
               <WorkflowCanvas
                 nodes={nodes}
@@ -820,7 +976,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
                 selectedNodeId={selectedNodeId}
                 savedNodeEnabledById={savedNodeEnabledById}
                 runtimeStatusByNodeName={runtimeStatusByNodeName}
-                showScheduleActiveIndicator={hasSavedActiveSchedule}
+                showScheduleActiveIndicator={showScheduleWarning}
               />
             </div>
 

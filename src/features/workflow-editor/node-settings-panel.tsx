@@ -843,8 +843,8 @@ export function NodeSettingsPanel({
   };
 
   return (
-    <aside className="h-full min-h-0 w-[320px] shrink-0 border-l border-white/10 bg-[#08101d]">
-  <div className="h-full min-h-0 overflow-y-auto px-4 py-5">
+    <aside className="sticky top-0 h-[calc(100svh-156px)] w-[320px] shrink-0 border-l border-white/10 bg-[#08101d]">
+      <div className="h-full overflow-y-auto px-4 py-5 overscroll-contain">
         <div className="space-y-4">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">
@@ -857,7 +857,7 @@ export function NodeSettingsPanel({
               {node.kind} · {node.type}
             </p>
           </div>
-
+  
           <Field label="Name">
             <input
               value={node.name}
@@ -866,7 +866,7 @@ export function NodeSettingsPanel({
               placeholder="Node name"
             />
           </Field>
-
+  
           <Field label="Description">
             <textarea
               value={node.description ?? ""}
@@ -876,69 +876,75 @@ export function NodeSettingsPanel({
               placeholder="Node description"
             />
           </Field>
-
+  
           {node.type === "WEBHOOK" && renderWebhookSettings()}
           {node.type === "HTTP" && renderHttpSettings()}
+          {node.type === "SCHEDULE" && renderScheduleSettings()}
+          {node.type === "TELEGRAM" && renderTelegramSettings()}
           {node.type === "EMAIL" && renderEmailSettings()}
           {node.type === "EMAIL_TRIGGER" && renderEmailTriggerSettings()}
-          {node.type === "TELEGRAM" && renderTelegramSettings()}
           {node.type === "DATABASE" && renderDatabaseSettings()}
           {node.type === "TRANSFORM" && renderTransformSettings()}
-          {node.type === "SCHEDULE" && renderScheduleSettings()}
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Retry limit">
-              <input
-                type="number"
-                min={0}
-                value={node.retryLimit}
-                onChange={handleRetryLimitChange}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-              />
-            </Field>
-
-            <Field label="Retry delay ms">
-              <input
-                type="number"
-                min={0}
-                value={node.retryDelayMs}
-                onChange={handleRetryDelayChange}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-              />
-            </Field>
-          </div>
-
-          <Field label="Timeout ms">
-            <input
-              type="number"
-              min={0}
-              value={node.timeoutMs ?? ""}
-              onChange={handleTimeoutChange}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-              placeholder="Optional timeout"
-            />
-          </Field>
-
-          <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <div className="pr-4">
-              <p className="text-sm font-medium text-white">Enabled</p>
-              <p className="text-xs text-white/45">
-                Node participates in execution
-              </p>
+  
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs uppercase tracking-[0.15em] text-white/45">
+              Execution controls
+            </p>
+  
+            <div className="mt-4 space-y-4">
+              <Field label="Retry limit">
+                <input
+                  type="number"
+                  min={0}
+                  value={node.retryLimit}
+                  onChange={handleRetryLimitChange}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                />
+              </Field>
+  
+              <Field label="Retry delay (ms)">
+                <input
+                  type="number"
+                  min={0}
+                  value={node.retryDelayMs}
+                  onChange={handleRetryDelayChange}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                />
+              </Field>
+  
+              <Field label="Timeout (ms)">
+                <input
+                  type="number"
+                  min={0}
+                  value={node.timeoutMs ?? ""}
+                  onChange={handleTimeoutChange}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  placeholder="Optional timeout"
+                />
+              </Field>
+  
+              <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">Enabled</p>
+                  <p className="text-xs text-white/45">
+                    Toggle this node in workflow execution
+                  </p>
+                </div>
+  
+                <input
+                  type="checkbox"
+                  checked={node.isEnabled}
+                  onChange={handleEnabledChange}
+                  className="h-4 w-4 rounded border border-white/20 bg-transparent"
+                />
+              </label>
             </div>
-
-            <input
-              type="checkbox"
-              checked={node.isEnabled}
-              onChange={handleEnabledChange}
-              className="h-5 w-5 shrink-0 accent-cyan-400"
-            />
-          </label>
-
+          </div>
+  
           <button
             type="button"
             onClick={() => onDelete(node.id)}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-400/15"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm font-medium text-rose-200 transition hover:bg-rose-400/15"
           >
             <Trash2 className="h-4 w-4" />
             Delete node
@@ -947,6 +953,7 @@ export function NodeSettingsPanel({
       </div>
     </aside>
   );
+  
 }
 
 function Field({

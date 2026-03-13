@@ -1,5 +1,11 @@
-export const redisConnection = {
-  host: process.env.REDIS_HOST ?? "127.0.0.1",
-  port: Number(process.env.REDIS_PORT ?? 6379),
+import IORedis from "ioredis";
+
+const redisUrl = process.env.REDIS_URL;
+
+if (!redisUrl) {
+  throw new Error("REDIS_URL is not set");
+}
+
+export const redisConnection = new IORedis(redisUrl, {
   maxRetriesPerRequest: null,
-};
+});

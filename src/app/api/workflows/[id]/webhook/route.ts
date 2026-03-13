@@ -12,7 +12,7 @@ export async function GET(
     const workflow = await prisma.workflow.findUnique({
       where: { id },
       include: {
-        webhookEndpoint: true,
+        webhookEndpoints: true,
       },
     });
 
@@ -22,13 +22,11 @@ export async function GET(
 
     return successResponse({
       workflowId: workflow.id,
-      webhook: workflow.webhookEndpoint
-        ? {
-            path: workflow.webhookEndpoint.path,
-            isActive: workflow.webhookEndpoint.isActive,
-            url: `${process.env.APP_WEBHOOK_BASE_URL}/api/hooks/${workflow.webhookEndpoint.path}`,
-          }
-        : null,
+      webhooks: workflow.webhookEndpoints.map((endpoint) => ({
+        path: endpoint.path,
+        isActive: endpoint.isActive,
+        url: `${process.env.APP_WEBHOOK_BASE_URL}/api/hooks/${endpoint.path}`,
+      })),
     });
   } catch (error) {
     return errorResponse(

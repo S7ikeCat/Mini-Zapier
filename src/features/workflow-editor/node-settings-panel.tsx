@@ -603,6 +603,7 @@ export function NodeSettingsPanel({
   };
 
   const renderWebhookSettings = () => {
+    const httpStarterOnly = getConfigValue(node.config, "httpStarterOnly") === true;
     const path = getConfigString(node.config, "path");
     const secret = getConfigString(node.config, "secret");
 
@@ -625,6 +626,27 @@ export function NodeSettingsPanel({
             placeholder="Optional webhook secret"
           />
         </Field>
+
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+  <label className="flex items-start gap-3">
+    <input
+      type="checkbox"
+      checked={httpStarterOnly}
+      onChange={(e) =>
+        patchConfig({ httpStarterOnly: e.target.checked })
+      }
+      className="mt-1 h-4 w-4 rounded border border-white/20 bg-transparent"
+    />
+    <div>
+      <p className="text-sm font-medium text-white">
+        HTTP starter only
+      </p>
+      <p className="mt-1 text-xs text-white/45">
+        This webhook starts only its own HTTP branch and does not continue to shared downstream nodes.
+      </p>
+    </div>
+  </label>
+</div>
 
         <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3">
           <p className="text-xs font-medium uppercase tracking-[0.15em] text-cyan-300/80">

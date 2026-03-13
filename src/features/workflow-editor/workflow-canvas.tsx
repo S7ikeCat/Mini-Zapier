@@ -162,7 +162,12 @@ function WorkflowCanvasInner({
         label: pendingNode.label,
         kind: pendingNode.kind,
         type: pendingNode.type,
-        config: {},
+        config:
+  pendingNode.type === "HTTP"
+    ? { method: "POST" }
+    : pendingNode.type === "WEBHOOK"
+      ? { httpStarterOnly: false }
+      : {},
         description: null,
         retryLimit: 0,
         retryDelayMs: 0,

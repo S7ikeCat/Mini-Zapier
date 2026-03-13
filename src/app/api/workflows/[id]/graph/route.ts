@@ -54,6 +54,7 @@ function getWebhookPathsFromNodes(nodes: GraphNodeInput[]): string[] {
  *       200:
  *         description: Graph сохранён
  */
+
 export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -61,6 +62,7 @@ export async function PUT(
   try {
     const { id } = await context.params;
     const body = await request.json();
+    console.log("!!GRAPH SAVE DEBUG!!", JSON.stringify(body, null, 2));
     const data = saveWorkflowGraphSchema.parse(body);
 
     const webhookPaths = getWebhookPathsFromNodes(
@@ -79,7 +81,7 @@ export async function PUT(
         );
       }
     }
-
+    console.log("!!!!GRAPH SAVE DEBUG", JSON.stringify(body, null, 2));
     const result = await WorkflowGraphService.saveGraph({
       workflowId: id,
       nodes: data.nodes,
@@ -136,5 +138,6 @@ export async function PUT(
       500,
       error instanceof Error ? error.message : error
     );
+    
   }
 }

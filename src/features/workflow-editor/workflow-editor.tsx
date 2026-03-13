@@ -140,7 +140,23 @@ function buildSavePayload(
       kind: node.data.kind,
       positionX: node.position.x,
       positionY: node.position.y,
-      config: node.data.config ?? {},
+      config:
+  node.data.type === "HTTP"
+    ? {
+        method:
+          typeof node.data.config?.method === "string" &&
+          node.data.config.method.trim().length > 0
+            ? node.data.config.method
+            : "POST",
+        ...(node.data.config ?? {}),
+      }
+    : node.data.type === "WEBHOOK"
+      ? {
+          httpStarterOnly:
+            node.data.config?.httpStarterOnly === true,
+          ...(node.data.config ?? {}),
+        }
+      : node.data.config ?? {},
       description: node.data.description ?? null,
       retryLimit: node.data.retryLimit ?? 0,
       retryDelayMs: node.data.retryDelayMs ?? 0,
@@ -586,18 +602,52 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
   const handleRun = useCallback(async () => {
     try {
       setIsRunning(true);
-
+  
+      await saveWorkflowMeta();
+  
+      const saveResponse = await fetch(`/api/workflows/${workflow.id}/graph`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(savePayload),
+      });
+  
+      const saveResult: {
+        success?: boolean;
+        message?: string;
+        details?: unknown;
+      } = await saveResponse.json();
+  
+      if (!saveResponse.ok || saveResult.success === false) {
+        const detailsMessage =
+          saveResult.details &&
+          typeof saveResult.details === "object" &&
+          "error" in saveResult.details &&
+          typeof (saveResult.details as { error?: unknown }).error === "string"
+            ? (saveResult.details as { error: string }).error
+            : null;
+  
+        throw new Error(
+          detailsMessage ||
+            saveResult.message ||
+            "Failed to save workflow before run"
+        );
+      }
+  
+      setSavedNodeEnabledById(mapSavedNodeEnabled(nodes));
+  
       const response = await fetch(`/api/workflows/${workflow.id}/run`, {
         method: "POST",
       });
-
+  
       const result: {
         success: boolean;
         data?: LiveExecutionResult;
         message?: string;
         details?: unknown;
       } = await response.json();
-
+  
       if (!response.ok || !result.success) {
         const detailsMessage =
           result.details &&
@@ -606,24 +656,30 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
           typeof (result.details as { error?: unknown }).error === "string"
             ? (result.details as { error: string }).error
             : null;
-
+  
         throw new Error(
           detailsMessage || result.message || "Failed to run workflow"
         );
       }
-
+  
       setIsRunResultOpen(true);
       startExecutionPolling();
     } catch (error) {
       console.error(error);
-
+  
       const message =
         error instanceof Error ? error.message : "Не удалось выполнить workflow";
-
+  
       alert(message);
       setIsRunning(false);
     }
-  }, [startExecutionPolling, workflow.id]);
+  }, [
+    nodes,
+    savePayload,
+    saveWorkflowMeta,
+    startExecutionPolling,
+    workflow.id,
+  ]);
 
   useEffect(() => {
     const shouldPoll = isRunResultOpen || isRunning;
@@ -693,7 +749,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
             Run workflow
           </button>
   
-          {!isRunResultOpen && (liveExecutions.length > 0 || hasSavedActiveSchedule) && (
+          
             <button
               type="button"
               onClick={() => {
@@ -704,7 +760,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
             >
               Show live runs
             </button>
-          )}
+        
   
           
   
@@ -799,81 +855,110 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
               </div>
   
               <div className="space-y-4">
-                {liveExecutions.map((execution) => (
-                  <div
-                    key={
-                      execution.executionId ??
-                      `${execution.triggerType}-${execution.updatedAt}`
-                    }
-                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
+  {liveExecutions.map((execution) => {
+    const executionMeta = (
+      <div className="mb-3">
+        <div
+          className={`flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2 transition ${
+            execution.executionId
+              ? "cursor-pointer hover:border-cyan-400/30 hover:bg-cyan-400/10"
+              : ""
+          }`}
+        >
+          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
+            Execution: {execution.executionId ?? "unknown"}
+          </div>
+    
+          {execution.triggerType ? (
+            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
+              Trigger: {execution.triggerType}
+            </div>
+          ) : null}
+    
+          <div
+            className={`rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs ${getRunStatusTone(
+              execution.status
+            )}`}
+          >
+            Status: {execution.status}
+          </div>
+    
+          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
+            {getRelativeUpdatedLabel(execution.updatedAt, nowMs)}
+          </div>
+    
+          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
+            Duration: {execution.durationMs ?? 0} ms
+          </div>
+    
+          {execution.executionId ? (
+            <div className="ml-auto rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-400">
+              Open details ↗
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+
+    return (
+      <div
+        key={
+          execution.executionId ??
+          `${execution.triggerType}-${execution.updatedAt}`
+        }
+        className="rounded-2xl border border-white/10 bg-white/5 p-4"
+      >
+        {execution.executionId ? (
+          <Link
+            href={`/executions/${execution.executionId}`}
+            className="block"
+          >
+            {executionMeta}
+          </Link>
+        ) : (
+          executionMeta
+        )}
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-[#0b1728]/60 p-4">
+            <h4 className="mb-3 text-sm font-semibold text-white">Steps</h4>
+            <div className="space-y-2">
+              {(execution.steps ?? []).map((step) => (
+                <div
+                  key={step.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 px-3 py-2"
+                >
+                  <span className="text-sm text-white/75">
+                    {step.nodeName}
+                  </span>
+                  <span
+                    className={`text-sm ${getStepStatusTone(step.status)}`}
                   >
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                      <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
-                        Execution: {execution.executionId ?? "unknown"}
-                      </div>
-  
-                      {execution.triggerType ? (
-                        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
-                          Trigger: {execution.triggerType}
-                        </div>
-                      ) : null}
-  
-                      <div
-                        className={`rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs ${getRunStatusTone(
-                          execution.status
-                        )}`}
-                      >
-                        Status: {execution.status}
-                      </div>
-  
-                      <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
-                        {getRelativeUpdatedLabel(execution.updatedAt, nowMs)}
-                      </div>
-  
-                      <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
-                        Duration: {execution.durationMs ?? 0} ms
-                      </div>
-                    </div>
-  
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      <div className="rounded-2xl border border-white/10 bg-[#0b1728]/60 p-4">
-                        <h4 className="mb-3 text-sm font-semibold text-white">Steps</h4>
-                        <div className="space-y-2">
-                          {(execution.steps ?? []).map((step) => (
-                            <div
-                              key={step.id}
-                              className="flex items-center justify-between gap-3 rounded-xl border border-white/10 px-3 py-2"
-                            >
-                              <span className="text-sm text-white/75">
-                                {step.nodeName}
-                              </span>
-                              <span
-                                className={`text-sm ${getStepStatusTone(step.status)}`}
-                              >
-                                {step.status} · {step.durationMs ?? 0} ms
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-  
-                      <div className="rounded-2xl border border-white/10 bg-[#0b1728]/60 p-4">
-                        <h4 className="mb-3 text-sm font-semibold text-white">Logs</h4>
-                        <div className="space-y-2">
-                          {(execution.logs ?? []).map((log) => (
-                            <div
-                              key={log.id}
-                              className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/75"
-                            >
-                              [{log.level}] {log.message}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    {step.status} · {step.durationMs ?? 0} ms
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-[#0b1728]/60 p-4">
+            <h4 className="mb-3 text-sm font-semibold text-white">Logs</h4>
+            <div className="space-y-2">
+              {(execution.logs ?? []).map((log) => (
+                <div
+                  key={log.id}
+                  className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/75"
+                >
+                  [{log.level}] {log.message}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  })}
+</div>
             </div>
           )}
         </div>

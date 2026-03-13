@@ -91,7 +91,7 @@ model Workflow {
   nodes           WorkflowNode[]
   edges           WorkflowEdge[]
   executions      Execution[]
-  webhookEndpoint WebhookEndpoint?
+  webhookEndpoints WebhookEndpoint[]
   scheduleTrigger ScheduleTrigger?
   emailTrigger    EmailTrigger?
 
@@ -274,7 +274,7 @@ model Connection {
 
 model WebhookEndpoint {
   id         String   @id @default(cuid())
-  workflowId String   @unique
+  workflowId String   
   path       String   @unique
   secret     String?
   isActive   Boolean  @default(true)

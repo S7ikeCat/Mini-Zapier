@@ -612,7 +612,8 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
   const handleRun = useCallback(async () => {
     try {
       setIsRunning(true);
-
+      
+      
       await saveWorkflowMeta();
 
       const saveResponse = await fetch(`/api/workflows/${workflow.id}/graph`, {
@@ -646,7 +647,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
       }
 
       setSavedNodeEnabledById(mapSavedNodeEnabled(nodes));
-      setIsGraphDirty(true);
+      setIsGraphDirty(false);
 
       const response = await fetch(`/api/workflows/${workflow.id}/run`, {
         method: "POST",

@@ -9,20 +9,21 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   return (
     <div className="min-h-screen bg-[#07111f] text-white">
-  <div className="flex h-screen overflow-hidden">
-    <Sidebar
-      collapsed={sidebarCollapsed}
-      onToggle={() => setSidebarCollapsed((prev) => !prev)}
-    />
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <Topbar />
-      <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+      <div className="flex min-h-screen">
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed((prev) => !prev)}
+        />
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Topbar />
+          <main className="min-w-0 flex-1">{children}</main>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
   );
 }

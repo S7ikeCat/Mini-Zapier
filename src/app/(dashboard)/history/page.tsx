@@ -90,9 +90,11 @@ export default async function HistoryPage() {
                   {execution.logs.map((log) => (
                     <div
                       key={log.id}
-                      className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/70"
+                      className="min-w-0 overflow-hidden rounded-xl border border-white/10 px-3 py-2 text-sm text-white/70"
                     >
-                      [{log.level}] {log.message}
+                      <p className="max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                        [{log.level}] {log.message}
+                      </p>
                     </div>
                   ))}
                 </div>

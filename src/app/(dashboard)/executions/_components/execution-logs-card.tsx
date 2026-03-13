@@ -35,10 +35,10 @@ export function ExecutionLogsCard({
   latestMessage,
 }: ExecutionLogsCardProps) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="font-medium">Recent logs</h3>
-        <span className="text-xs text-white/45">Последние 3 записи</span>
+    <div className="min-w-0 rounded-2xl border border-white/10 bg-[#0b1728] p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="min-w-0 font-medium">Recent logs</h3>
+        <span className="shrink-0 text-xs text-white/45">Последние 3 записи</span>
       </div>
 
       <div className="space-y-2">
@@ -46,16 +46,18 @@ export function ExecutionLogsCard({
           logs.map((log) => (
             <div
               key={log.id}
-              className="rounded-xl border border-white/10 px-3 py-2"
+              className="min-w-0 overflow-hidden rounded-xl border border-white/10 px-3 py-2"
             >
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-cyan-300">[{log.level}]</span>
-                <span className="text-xs text-white/35">
+                <span className="shrink-0 text-xs text-cyan-300">
+                  [{log.level}]
+                </span>
+                <span className="shrink-0 text-xs text-white/35">
                   {formatClientDate(log.createdAt)}
                 </span>
               </div>
 
-              <p className="mt-2 text-sm text-white/70">
+              <p className="mt-2 max-w-full whitespace-pre-wrap break-words text-sm text-white/70 [overflow-wrap:anywhere]">
                 {log.message.trim() !== "" ? log.message : "—"}
               </p>
             </div>
@@ -68,8 +70,10 @@ export function ExecutionLogsCard({
       </div>
 
       {latestMessage.trim() !== "" ? (
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/45">
-          Latest event: {latestMessage}
+        <div className="mt-4 min-w-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/45">
+          <p className="max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+            Latest event: {latestMessage}
+          </p>
         </div>
       ) : null}
     </div>

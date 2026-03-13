@@ -83,10 +83,6 @@ function getTriggerLabel(triggerType: string) {
   }
 }
 
-function pad(value: number) {
-  return value.toString().padStart(2, "0");
-}
-
 const DISPLAY_TIME_ZONE = "Europe/Moscow";
 
 function formatDate(value: Date | null) {
@@ -123,14 +119,6 @@ function getExecutionDisplayDate(execution: {
   createdAt: Date;
 }) {
   return execution.finishedAt ?? execution.startedAt ?? execution.createdAt;
-}
-
-function getExecutionSortTime(execution: {
-  finishedAt: Date | null;
-  startedAt: Date | null;
-  createdAt: Date;
-}) {
-  return getExecutionDisplayDate(execution).getTime();
 }
 
 function parseDateParam(value: string | undefined) {
@@ -232,10 +220,6 @@ function getExecutionErrorCount(execution: ExecutionListItem) {
   return count;
 }
 
-function hasExecutionIssue(execution: ExecutionListItem) {
-  return getExecutionErrorCount(execution) > 0;
-}
-
 function isExecutionStatus(value: string | undefined): value is ExecutionStatus {
   return Boolean(
     value && executionStatusOptions.includes(value as ExecutionStatus),
@@ -264,133 +248,84 @@ export default async function ExecutionsPage({
       ? params.workflowId
       : undefined;
 
-      const currentPage =
-  typeof params.page === "string" && Number(params.page) > 0
-    ? Number(params.page)
-    : 1;
+  const currentPage =
+    typeof params.page === "string" && Number(params.page) > 0
+      ? Number(params.page)
+      : 1;
 
-const pageSize = 50;
-const skip = (currentPage - 1) * pageSize;
+  const pageSize = 50;
+  const skip = (currentPage - 1) * pageSize;
 
-      const selectedFromDate =
-  typeof params.fromDate === "string" && params.fromDate.trim() !== ""
-    ? params.fromDate
-    : undefined;
+  const selectedFromDate =
+    typeof params.fromDate === "string" && params.fromDate.trim() !== ""
+      ? params.fromDate
+      : undefined;
 
-const selectedToDate =
-  typeof params.toDate === "string" && params.toDate.trim() !== ""
-    ? params.toDate
-    : undefined;
+  const selectedToDate =
+    typeof params.toDate === "string" && params.toDate.trim() !== ""
+      ? params.toDate
+      : undefined;
 
-const createdAtFilter = buildCreatedAtFilter(
-  selectedFromDate,
-  selectedToDate,
-);
+  const createdAtFilter = buildCreatedAtFilter(
+    selectedFromDate,
+    selectedToDate,
+  );
 
-const baseWhere: Prisma.ExecutionWhereInput = {
-  ...(selectedTrigger ? { triggerType: selectedTrigger } : {}),
-  ...(selectedWorkflowId ? { workflowId: selectedWorkflowId } : {}),
-  ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
-};
+  const baseWhere: Prisma.ExecutionWhereInput = {
+    ...(selectedTrigger ? { triggerType: selectedTrigger } : {}),
+    ...(selectedWorkflowId ? { workflowId: selectedWorkflowId } : {}),
+    ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
+  };
 
   const where: Prisma.ExecutionWhereInput = {
     ...baseWhere,
     ...(selectedStatus ? { status: selectedStatus } : {}),
   };
 
-  const [executions, workflows, totalCount, runningCount, successCount, failedCount] =
-    await Promise.all([
-      selectedStatus
-        ? prisma.execution.findMany({
-            where,
-            orderBy: [
-              { startedAt: "desc" },
-              { createdAt: "desc" },
-            ],
-            include: executionInclude,
-            take: 50,
-          })
-        : (async (): Promise<ExecutionListItem[]> => {
-            const [problemExecutions, recentExecutions] = await Promise.all([
-              prisma.execution.findMany({
-                where: {
-                  ...baseWhere,
-                  OR: [
-                    { status: "FAILED" },
-                    { errorMessage: { not: null } },
-                    {
-                      steps: {
-                        some: {
-                          OR: [
-                            { status: "FAILED" },
-                            { errorMessage: { not: null } },
-                          ],
-                        },
-                      },
-                    },
-                    {
-                      logs: {
-                        some: {
-                          level: "ERROR",
-                        },
-                      },
-                    },
-                  ],
-                },
-                orderBy: { createdAt: "desc" },
-                include: executionInclude,
-                take: 50,
-              }),
-              prisma.execution.findMany({
-                where: baseWhere,
-                orderBy: { createdAt: "desc" },
-                include: executionInclude,
-                take: 100,
-              }),
-            ]);
-
-            const seen = new Set<string>();
-
-            return [...problemExecutions, ...recentExecutions]
-              .filter((execution) => {
-                if (seen.has(execution.id)) {
-                  return false;
-                }
-
-                seen.add(execution.id);
-                return true;
-              })
-              .slice(0, 50);
-          })(),
-      prisma.workflow.findMany({
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-        },
-      }),
-      prisma.execution.count({
-        where,
-      }),
-      prisma.execution.count({
-        where: {
-          ...where,
-          status: "RUNNING",
-        },
-      }),
-      prisma.execution.count({
-        where: {
-          ...where,
-          status: "SUCCESS",
-        },
-      }),
-      prisma.execution.count({
-        where: {
-          ...where,
-          status: "FAILED",
-        },
-      }),
-    ]);
+  const [
+    executions,
+    workflows,
+    totalCount,
+    runningCount,
+    successCount,
+    failedCount,
+  ] = await Promise.all([
+    prisma.execution.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }],
+      include: executionInclude,
+      take: pageSize,
+      skip,
+    }),
+    prisma.workflow.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+      },
+    }),
+    prisma.execution.count({
+      where,
+    }),
+    prisma.execution.count({
+      where: {
+        ...where,
+        status: "RUNNING",
+      },
+    }),
+    prisma.execution.count({
+      where: {
+        ...where,
+        status: "SUCCESS",
+      },
+    }),
+    prisma.execution.count({
+      where: {
+        ...where,
+        status: "FAILED",
+      },
+    }),
+  ]);
 
   const safeExecutions: ExecutionListItem[] = executions;
 
@@ -403,11 +338,7 @@ const baseWhere: Prisma.ExecutionWhereInput = {
   );
 
   return (
-    <div
-      className="space-y-6 notranslate"
-      translate="no"
-      
-    >
+    <div className="space-y-6 notranslate" translate="no">
       <section className="rounded-[28px] border border-white/10 bg-linear-to-br from-cyan-500/10 via-white/5 to-violet-500/10 p-6 md:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -507,46 +438,16 @@ const baseWhere: Prisma.ExecutionWhereInput = {
             </button>
 
             {hasActiveFilters ? (
-              <a
+              <Link
                 href="/executions"
                 className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70 transition hover:bg-white/10"
               >
                 Сбросить
-              </a>
+              </Link>
             ) : null}
           </div>
 
-          <div>
-  <label
-    htmlFor="fromDate"
-    className="mb-2 block text-sm text-white/50"
-  >
-    С даты
-  </label>
-  <input
-    id="fromDate"
-    name="fromDate"
-    type="date"
-    defaultValue={selectedFromDate ?? ""}
-    className="w-full rounded-2xl border border-white/10 bg-[#0b1728] px-4 py-3 text-sm text-white outline-none"
-  />
-</div>
-
-<div>
-  <label
-    htmlFor="toDate"
-    className="mb-2 block text-sm text-white/50"
-  >
-    По дату
-  </label>
-  <input
-    id="toDate"
-    name="toDate"
-    type="date"
-    defaultValue={selectedToDate ?? ""}
-    className="w-full rounded-2xl border border-white/10 bg-[#0b1728] px-4 py-3 text-sm text-white outline-none"
-  />
-</div>
+         
         </form>
 
         {hasActiveFilters ? (
@@ -572,19 +473,20 @@ const baseWhere: Prisma.ExecutionWhereInput = {
                   ?.name ?? "Unknown"}
               </span>
             ) : null}
+
+            {selectedFromDate ? (
+              <span className="rounded-full border border-white/10 bg-[#0b1728] px-3 py-1 text-xs text-white/70">
+                С даты: {selectedFromDate}
+              </span>
+            ) : null}
+
+            {selectedToDate ? (
+              <span className="rounded-full border border-white/10 bg-[#0b1728] px-3 py-1 text-xs text-white/70">
+                По дату: {selectedToDate}
+              </span>
+            ) : null}
           </div>
         ) : null}
-        {selectedFromDate ? (
-  <span className="rounded-full border border-white/10 bg-[#0b1728] px-3 py-1 text-xs text-white/70">
-    С даты: {selectedFromDate}
-  </span>
-) : null}
-
-{selectedToDate ? (
-  <span className="rounded-full border border-white/10 bg-[#0b1728] px-3 py-1 text-xs text-white/70">
-    По дату: {selectedToDate}
-  </span>
-) : null}
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -634,12 +536,12 @@ const baseWhere: Prisma.ExecutionWhereInput = {
 
           return (
             <Link
-  key={execution.id}
-  href={`/executions/${execution.id}`}
-  className="block rounded-3xl border border-white/10 bg-white/5 p-6 transition hover:border-cyan-400/20 hover:bg-white/7"
->
+              key={execution.id}
+              href={`/executions/${execution.id}`}
+              className="block rounded-3xl border border-white/10 bg-white/5 p-6 transition hover:border-cyan-400/20 hover:bg-white/7"
+            >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
                     <h2 className="text-xl font-semibold">
                       {execution.workflow?.name ?? "Unknown workflow"}
@@ -663,29 +565,30 @@ const baseWhere: Prisma.ExecutionWhereInput = {
                   </div>
 
                   <p className="mt-2 text-sm text-white/50">
-                    Started:{" "}
-                    {formatDate(getExecutionDisplayDate(execution))} ·
+                  Created: {formatDate(getExecutionDisplayDate(execution))} · Workflow:{" "}
                     Workflow: {execution.workflow?.status ?? "UNKNOWN"} ·{" "}
                     {execution.workflow?.isEnabled ? "Enabled" : "Disabled"}
                   </p>
 
                   {execution.errorMessage ? (
-                    <div className="mt-3 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
-                      {execution.errorMessage}
+                    <div className="mt-3 min-w-0 overflow-hidden rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+                      <p className="max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                        {execution.errorMessage}
+                      </p>
                     </div>
                   ) : null}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-2xl border border-white/10 bg-[#0b1728] px-4 py-3">
-                    <div className="mb-2 flex items-center gap-2 text-sm text-white/45">
-                      <Clock3 className="h-4 w-4 text-cyan-300" />
-                      Started
-                    </div>
-                    <p className="text-sm text-white/75">
-                    {formatDate(getExecutionDisplayDate(execution))}
-                    </p>
-                  </div>
+                <div className="rounded-2xl border border-white/10 bg-[#0b1728] px-4 py-3">
+  <div className="mb-2 flex items-center gap-2 text-sm text-white/45">
+    <Clock3 className="h-4 w-4 text-cyan-300" />
+    Created
+  </div>
+  <p className="text-sm text-white/75">
+    {formatDate(getExecutionDisplayDate(execution))}
+  </p>
+</div>
 
                   <div className="rounded-2xl border border-white/10 bg-[#0b1728] px-4 py-3">
                     <div className="mb-2 flex items-center gap-2 text-sm text-white/45">
@@ -729,7 +632,7 @@ const baseWhere: Prisma.ExecutionWhereInput = {
                           key={step.id}
                           className="flex items-center justify-between rounded-xl border border-white/10 px-3 py-2"
                         >
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-sm text-white/80">
                               {step.nodeName}
                             </p>
@@ -759,23 +662,23 @@ const baseWhere: Prisma.ExecutionWhereInput = {
                 </div>
 
                 <ExecutionLogsCard
-  logs={execution.logs.map((log) => ({
-    id: log.id,
-    level: String(log.level),
-    message:
-      "message" in log && typeof log.message === "string"
-        ? log.message
-        : "",
-    createdAt: log.createdAt.toISOString(),
-  }))}
-  latestMessage={
-    latestLog &&
-    "message" in latestLog &&
-    typeof latestLog.message === "string"
-      ? latestLog.message
-      : ""
-  }
-/>
+                  logs={execution.logs.map((log) => ({
+                    id: log.id,
+                    level: String(log.level),
+                    message:
+                      "message" in log && typeof log.message === "string"
+                        ? log.message
+                        : "",
+                    createdAt: log.createdAt.toISOString(),
+                  }))}
+                  latestMessage={
+                    latestLog &&
+                    "message" in latestLog &&
+                    typeof latestLog.message === "string"
+                      ? latestLog.message
+                      : ""
+                  }
+                />
               </div>
             </Link>
           );

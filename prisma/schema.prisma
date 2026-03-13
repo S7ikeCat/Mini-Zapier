@@ -180,24 +180,24 @@ model Execution {
 }
 
 model ExecutionStep {
-  id            String     @id @default(cuid())
-  executionId   String
-  nodeId        String
-  nodeName      String
-  nodeType      String
-  status        StepStatus @default(PENDING)
-  startedAt     DateTime?
-  finishedAt    DateTime?
-  durationMs    Int?
+  id          String     @id @default(cuid())
+  executionId String
+  nodeId      String?
+  nodeName    String
+  nodeType    String
+  status      StepStatus @default(PENDING)
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  durationMs  Int?
   inputPayload  Json?
   outputPayload Json?
-  errorMessage  String?
-  retryCount    Int        @default(0)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  errorMessage String?
+  retryCount   Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  execution Execution    @relation(fields: [executionId], references: [id], onDelete: Cascade)
-  node      WorkflowNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  execution Execution   @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  node      WorkflowNode? @relation(fields: [nodeId], references: [id], onDelete: SetNull)
 
   @@index([executionId])
   @@index([nodeId])

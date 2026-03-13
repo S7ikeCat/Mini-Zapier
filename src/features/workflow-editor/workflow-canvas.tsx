@@ -333,7 +333,7 @@ function WorkflowCanvasInner({
           nodeStrokeWidth={0.4}
           maskColor="rgba(7, 17, 31, 0.78)"
           bgColor="rgba(8, 16, 29, 0.94)"
-          className="!h-[104px] !w-[156px] !rounded-[22px] !border !border-white/10 !bg-[#08101d]/95 !shadow-[0_8px_24px_rgba(0,0,0,0.25)]"
+          className="h-26! w-39! rounded-[22px]! border! border-white/10! bg-[#08101d]/95! shadow-[0_8px_24px_rgba(0,0,0,0.25)]!"
           nodeColor={(node) => {
             const type = String(node.data?.type ?? "");
 
@@ -348,7 +348,7 @@ function WorkflowCanvasInner({
 
         <Controls
           position="bottom-left"
-          className="!shadow-none"
+          className="shadow-none!"
           showInteractive={false}
         />
 

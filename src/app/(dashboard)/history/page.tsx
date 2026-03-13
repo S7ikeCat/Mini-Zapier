@@ -92,7 +92,7 @@ export default async function HistoryPage() {
                       key={log.id}
                       className="min-w-0 overflow-hidden rounded-xl border border-white/10 px-3 py-2 text-sm text-white/70"
                     >
-                      <p className="max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                      <p className="max-w-full whitespace-pre-wrap wrap-break-word">
                         [{log.level}] {log.message}
                       </p>
                     </div>

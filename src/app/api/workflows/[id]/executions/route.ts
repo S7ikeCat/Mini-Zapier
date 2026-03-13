@@ -2,9 +2,9 @@ import { ExecutionService } from "@/server/services/execution.service";
 import { errorResponse, successResponse } from "@/server/lib/api-response";
 
 type Params = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 /**
@@ -26,7 +26,8 @@ type Params = {
  */
 export async function GET(_: Request, { params }: Params) {
   try {
-    const executions = await ExecutionService.getByWorkflowId(params.id);
+    const { id } = await params;
+    const executions = await ExecutionService.getByWorkflowId(id);
 
     return successResponse(executions, "Workflow executions fetched");
   } catch (error) {

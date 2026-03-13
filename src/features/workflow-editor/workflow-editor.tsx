@@ -296,15 +296,6 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
     [liveRunsHeight]
   );
 
-  const isScheduleNode = useCallback((node: Node) => {
-    return (
-      node.type === "trigger" &&
-      typeof node.data === "object" &&
-      node.data !== null &&
-      "triggerType" in node.data &&
-      node.data.triggerType === "SCHEDULE"
-    );
-  }, []);
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
@@ -1034,7 +1025,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
                         const executionMeta = (
                           <div className="mb-2">
                             <div
-                              className={`flex flex-wrap items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-2 transition ${
+                              className={`flex flex-wrap items-center gap-1.5 rounded-2xl border border-white/10 bg-white/3 p-2 transition ${
                                 execution.executionId
                                   ? "cursor-pointer hover:border-cyan-400/30 hover:bg-cyan-400/10"
                                   : ""
@@ -1155,7 +1146,7 @@ export function WorkflowEditor({ workflow }: WorkflowEditorProps) {
       </div>
 
       {isMetaModalOpen ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-120 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
           <div className="w-full max-w-3xl rounded-[28px] border border-white/10 bg-[#08101d] shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
               <div>

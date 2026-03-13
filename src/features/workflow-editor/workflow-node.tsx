@@ -97,7 +97,7 @@ export function WorkflowNode({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        "relative min-w-[220px] rounded-2xl border bg-[#0b1728] shadow-[0_10px_30px_rgba(0,0,0,0.25)] transition",
+        "relative min-w-55 rounded-2xl border bg-[#0b1728] shadow-[0_10px_30px_rgba(0,0,0,0.25)] transition",
         "bg-linear-to-br",
         getNodeAccent(nodeData.type),
         selected ? "ring-2 ring-cyan-400/70" : "ring-0",

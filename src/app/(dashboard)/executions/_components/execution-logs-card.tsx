@@ -57,7 +57,7 @@ export function ExecutionLogsCard({
                 </span>
               </div>
 
-              <p className="mt-2 max-w-full whitespace-pre-wrap break-words text-sm text-white/70 [overflow-wrap:anywhere]">
+              <p className="mt-2 max-w-full whitespace-pre-wrap wrap-break-word text-sm text-white/70">
                 {log.message.trim() !== "" ? log.message : "—"}
               </p>
             </div>
@@ -71,7 +71,7 @@ export function ExecutionLogsCard({
 
       {latestMessage.trim() !== "" ? (
         <div className="mt-4 min-w-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/45">
-          <p className="max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+          <p className="max-w-full whitespace-pre-wrap wrap-break-word">
             Latest event: {latestMessage}
           </p>
         </div>

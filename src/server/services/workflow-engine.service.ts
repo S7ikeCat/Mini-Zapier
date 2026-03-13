@@ -10,7 +10,6 @@ import {
 } from "@prisma/client";
 
 import nodemailer from "nodemailer";
-import type { SentMessageInfo } from "nodemailer";
 import { Client } from "pg";
 import { createExecutionContext } from "@/server/lib/workflow-context";
 import type { WorkflowExecutionContext } from "@/server/lib/workflow-context";

@@ -572,7 +572,7 @@ export default async function ExecutionsPage({
 
                   {execution.errorMessage ? (
                     <div className="mt-3 min-w-0 overflow-hidden rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
-                      <p className="max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                      <p className="max-w-full whitespace-pre-wrap wrap-break-word">
                         {execution.errorMessage}
                       </p>
                     </div>

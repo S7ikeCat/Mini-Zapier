@@ -280,7 +280,7 @@ export function NodeSettingsPanel({
             <button
               type="button"
               onClick={() => setShowSmtpPassword((prev) => !prev)}
-              className="inline-flex h-[48px] w-[48px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10"
+              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10"
             >
               {showSmtpPassword ? (
                 <EyeOff className="h-4 w-4" />
@@ -370,7 +370,7 @@ export function NodeSettingsPanel({
             <button
               type="button"
               onClick={() => setShowConnectionString((prev) => !prev)}
-              className="inline-flex h-[48px] w-[48px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10"
+              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10"
             >
               {showConnectionString ? (
                 <EyeOff className="h-4 w-4" />
@@ -754,7 +754,7 @@ export function NodeSettingsPanel({
             <button
               type="button"
               onClick={() => setShowBotToken(!showBotToken)}
-              className="inline-flex h-[48px] w-[48px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10"
+              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10"
             >
               {showBotToken ? (
                 <EyeOff className="h-4 w-4" />

@@ -1,8 +1,10 @@
 import { TriggerType } from "@prisma/client";
-import { workflowQueue } from "@/server/queues/workflow.queue";
+import { getWorkflowQueue } from "@/server/queues/workflow.queue";
 
 export class WorkflowRunService {
   static async runWorkflow(workflowId: string) {
+    const workflowQueue = getWorkflowQueue();
+
     const job = await workflowQueue.add("workflow-run", {
       workflowId,
       triggerType: TriggerType.WEBHOOK,

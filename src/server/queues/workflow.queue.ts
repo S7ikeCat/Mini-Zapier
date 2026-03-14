@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { TriggerType } from "@prisma/client";
-import { redisConnection } from "@/server/lib/redis";
+import { getRedisConnection } from "@/server/lib/redis";
 
 export type WorkflowJobData = {
   workflowId: string;
@@ -9,9 +9,16 @@ export type WorkflowJobData = {
   payload?: Record<string, unknown>;
 };
 
-export const workflowQueue = new Queue<WorkflowJobData>(
-  "workflow-execution",
-  {
-    connection: redisConnection,
+let workflowQueueInstance: Queue<WorkflowJobData> | null = null;
+
+export function getWorkflowQueue(): Queue<WorkflowJobData> {
+  if (workflowQueueInstance) {
+    return workflowQueueInstance;
   }
-);
+
+  workflowQueueInstance = new Queue<WorkflowJobData>("workflow-execution", {
+    connection: getRedisConnection(),
+  });
+
+  return workflowQueueInstance;
+}

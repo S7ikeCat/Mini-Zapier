@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/lib/prisma";
-import { workflowQueue } from "@/server/queues/workflow.queue";
+import { getWorkflowQueue } from "@/server/queues/workflow.queue";
 import { TriggerType } from "@prisma/client";
 
 export async function POST(
@@ -9,10 +9,12 @@ export async function POST(
 ) {
   try {
     const { path } = await context.params;
+
     console.log("Webhook hit", {
       path,
       userAgent: request.headers.get("user-agent"),
     });
+
     const body = (await request.json().catch(() => ({}))) as Record<
       string,
       unknown
@@ -34,6 +36,8 @@ export async function POST(
         { status: 404 }
       );
     }
+
+    const workflowQueue = getWorkflowQueue();
 
     const job = await workflowQueue.add("workflow-run", {
       workflowId: endpoint.workflowId,

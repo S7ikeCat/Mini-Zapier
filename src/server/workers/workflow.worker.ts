@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { redisConnection } from "@/server/lib/redis";
+import { getRedisConnection } from "@/server/lib/redis";
 import { WorkflowEngineService } from "@/server/services/workflow-engine.service";
 import type { WorkflowJobData } from "@/server/queues/workflow.queue";
 
@@ -28,7 +28,7 @@ export const workflowWorker = new Worker<WorkflowJobData, void, "workflow-run">(
     });
   },
   {
-    connection: redisConnection,
+    connection: getRedisConnection(),
   }
 );
 

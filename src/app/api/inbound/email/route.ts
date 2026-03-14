@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/lib/prisma";
-import { workflowQueue } from "@/server/queues/workflow.queue";
+import { getWorkflowQueue } from "@/server/queues/workflow.queue";
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,6 +52,8 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    const workflowQueue = getWorkflowQueue();
 
     const job = await workflowQueue.add("workflow-run", {
       workflowId: workflow.id,

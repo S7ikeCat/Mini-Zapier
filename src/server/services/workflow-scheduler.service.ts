@@ -1,7 +1,7 @@
 import { TriggerType, type WorkflowNode } from "@prisma/client";
 import { CronExpressionParser } from "cron-parser";
 import { prisma } from "@/shared/lib/prisma";
-import { workflowQueue } from "@/server/queues/workflow.queue";
+import { getWorkflowQueue } from "@/server/queues/workflow.queue";
 
 type ScheduleNodeConfig = {
   cron?: unknown;
@@ -17,9 +17,10 @@ function getScheduleConfig(node: WorkflowNode): {
       ? (node.config as ScheduleNodeConfig)
       : {};
 
-  const cron = typeof raw.cron === "string" && raw.cron.trim().length > 0
-    ? raw.cron.trim()
-    : null;
+  const cron =
+    typeof raw.cron === "string" && raw.cron.trim().length > 0
+      ? raw.cron.trim()
+      : null;
 
   const timezone =
     typeof raw.timezone === "string" && raw.timezone.trim().length > 0
@@ -76,6 +77,8 @@ export class WorkflowSchedulerService {
         },
       },
     });
+
+    const workflowQueue = getWorkflowQueue();
 
     for (const workflow of workflows) {
       for (const node of workflow.nodes) {

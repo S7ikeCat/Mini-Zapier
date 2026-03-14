@@ -37,6 +37,7 @@
     "react-hook-form": "^7.71.2",
     "reactflow": "^11.11.4",
     "recharts": "^3.8.0",
+    "resend": "^6.9.3",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-react": "^5.32.0",
     "tailwind-merge": "^3.5.0",

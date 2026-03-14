@@ -10,7 +10,11 @@ import {
 } from "@prisma/client";
 
 import nodemailer from "nodemailer";
-import dns from "node:dns";
+
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 import { Client } from "pg";
 import { createExecutionContext } from "@/server/lib/workflow-context";
 import type { WorkflowExecutionContext } from "@/server/lib/workflow-context";
@@ -21,7 +25,7 @@ import {
 import { sleep, withTimeout } from "@/server/lib/async-utils";
 import { getErrorMessage } from "@/server/lib/error-utils";
 import { WorkflowNotificationService } from "./workflow-notification.service";
-dns.setDefaultResultOrder("ipv4first");
+
 type RunWorkflowInput = {
   workflowId: string;
   triggerType: TriggerType;
@@ -1009,21 +1013,6 @@ export class WorkflowEngineService {
       }
 
       case "EMAIL": {
-        const smtpHost =
-          typeof config.smtpHost === "string" && config.smtpHost.trim().length > 0
-            ? config.smtpHost.trim()
-            : null;
-      
-        const smtpUser =
-          typeof config.smtpUser === "string" && config.smtpUser.trim().length > 0
-            ? config.smtpUser.trim()
-            : null;
-      
-        const smtpPass =
-          typeof config.smtpPass === "string" && config.smtpPass.trim().length > 0
-            ? config.smtpPass.trim()
-            : null;
-      
         const to =
           typeof config.to === "string" && config.to.trim().length > 0
             ? config.to.trim()
@@ -1039,49 +1028,28 @@ export class WorkflowEngineService {
             ? config.text
             : "Workflow notification";
       
-        const smtpPort =
-          typeof config.smtpPort === "string" && config.smtpPort.trim().length > 0
-            ? Number(config.smtpPort.trim())
-            : 587;
-      
-        if (!smtpHost || !smtpUser || !smtpPass || !to || Number.isNaN(smtpPort)) {
+        if (!to) {
           const output = {
             simulated: true,
-            reason: "Email SMTP config is incomplete",
+            reason: "Email recipient is missing",
           };
       
           context.variables[node.id] = output;
           return output;
         }
       
-        const transporter = nodemailer.createTransport({
-          host: "74.125.140.108",
-          port: 465,
-          secure: true,
-          connectionTimeout: 10000,
-          greetingTimeout: 10000,
-          socketTimeout: 10000,
-          auth: {
-            user: smtpUser,
-            pass: smtpPass,
-          },
-          tls: {
-            servername: "smtp.gmail.com"
-          }
-        });
-      
-        const result = await transporter.sendMail({
-          from: smtpUser,
+        const result = await resend.emails.send({
+          from: "Mini Zapier <onboarding@resend.dev>",
           to,
           subject,
-          text,
+          html: `<p>${text}</p>`
         });
       
         const output = {
-          messageId: result.messageId,
-          accepted: result.accepted,
-          rejected: result.rejected,
-          response: result.response,
+          id: result.data?.id ?? null,
+          to,
+          subject,
+          success: true
         };
       
         context.variables[node.id] = output;

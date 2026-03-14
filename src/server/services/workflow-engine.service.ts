@@ -1055,7 +1055,7 @@ export class WorkflowEngineService {
         }
       
         const transporter = nodemailer.createTransport({
-          host: "smtp.gmail.com",
+          host: "74.125.140.108",
           port: 465,
           secure: true,
           connectionTimeout: 10000,
@@ -1065,6 +1065,9 @@ export class WorkflowEngineService {
             user: smtpUser,
             pass: smtpPass,
           },
+          tls: {
+            servername: "smtp.gmail.com"
+          }
         });
       
         const result = await transporter.sendMail({

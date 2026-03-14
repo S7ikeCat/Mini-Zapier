@@ -1,0 +1,41 @@
+{
+    "$schema": "https://railway.app/railway.schema.json",
+    "services": {
+      "web": {
+        "source": {
+          "repo": "S7ikeCat/Mini-Zapier",
+          "branch": "master"
+        },
+        "build": {
+          "builder": "NIXPACKS"
+        },
+        "deploy": {
+          "startCommand": "npm run start"
+        }
+      },
+      "worker": {
+        "source": {
+          "repo": "S7ikeCat/Mini-Zapier",
+          "branch": "master"
+        },
+        "build": {
+          "builder": "NIXPACKS"
+        },
+        "deploy": {
+          "startCommand": "npm run worker"
+        }
+      },
+      "scheduler": {
+        "source": {
+          "repo": "S7ikeCat/Mini-Zapier",
+          "branch": "master"
+        },
+        "build": {
+          "builder": "NIXPACKS"
+        },
+        "deploy": {
+          "startCommand": "npm run scheduler"
+        }
+      }
+    }
+  }

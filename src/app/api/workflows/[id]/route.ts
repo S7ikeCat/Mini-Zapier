@@ -1,38 +1,12 @@
 import { NextRequest } from "next/server";
 import { ZodError } from "zod";
+import { revalidatePath } from "next/cache";
 import { WorkflowService } from "@/server/services/workflow.service";
 import { updateWorkflowSchema } from "@/server/validations/workflow";
 import { errorResponse, successResponse } from "@/server/lib/api-response";
 import { toPrismaJson } from "@/server/lib/prisma-json";
 import { prisma } from "@/shared/lib/prisma";
 
-/**
- * @swagger
- * /api/workflows/{id}:
- *   get:
- *     summary: Получить workflow по ID
- *     tags:
- *       - Workflows
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Workflow найден
- *       404:
- *         description: Workflow не найден
- *   patch:
- *     summary: Обновить workflow
- *     tags:
- *       - Workflows
- *   delete:
- *     summary: Удалить workflow
- *     tags:
- *       - Workflows
- */
 export async function GET(
   _: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -74,6 +48,9 @@ export async function PATCH(
       ...(data.canvas !== undefined && { canvas: toPrismaJson(data.canvas) }),
     });
 
+    revalidatePath("/workflows");
+    revalidatePath(`/workflows/${id}`);
+
     return successResponse(updated, "Workflow updated");
   } catch (error) {
     if (error instanceof ZodError) {
@@ -88,9 +65,6 @@ export async function PATCH(
   }
 }
 
-
-
-
 type RouteContext = {
   params: Promise<{
     id: string;
@@ -104,6 +78,8 @@ export async function DELETE(_: Request, { params }: RouteContext) {
     await prisma.workflow.delete({
       where: { id },
     });
+
+    revalidatePath("/workflows");
 
     return successResponse(null, "Workflow deleted");
   } catch (error) {

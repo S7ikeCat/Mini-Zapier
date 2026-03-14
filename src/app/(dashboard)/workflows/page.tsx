@@ -1,5 +1,13 @@
 import { prisma } from "@/shared/lib/prisma";
-import { ArrowUpRight, BadgeCheck, CirclePause, FileCode2, Play, Plus } from "lucide-react";
+import { connection } from "next/server";
+import {
+  ArrowUpRight,
+  BadgeCheck,
+  CirclePause,
+  FileCode2,
+  Play,
+  Plus,
+} from "lucide-react";
 import Link from "next/link";
 import { DeleteWorkflowButton } from "@/features/workflow/delete-workflow-button";
 
@@ -19,6 +27,8 @@ function getStatusStyles(status: string) {
 }
 
 export default async function WorkflowsPage() {
+  await connection();
+
   const workflows = await prisma.workflow.findMany({
     orderBy: { createdAt: "desc" },
     include: {
@@ -42,27 +52,23 @@ export default async function WorkflowsPage() {
         </div>
 
         <Link
-  href="/workflows/new"
-  className="
-    group relative inline-flex items-center gap-2
-    rounded-2xl px-5 py-3
-    font-medium text-slate-900
-
-    bg-white
-    shadow-sm
-
-    transition-all duration-300 ease-out
-
-    hover:-translate-y-1
-    hover:shadow-[0_10px_30px_rgba(255,255,255,0.25)]
-    hover:scale-[1.04]
-
-    active:scale-[0.96]
-  "
->
-  <Plus className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90" />
-  New workflow
-</Link>
+          href="/workflows/new"
+          className="
+            group relative inline-flex items-center gap-2
+            rounded-2xl px-5 py-3
+            font-medium text-slate-900
+            bg-white
+            shadow-sm
+            transition-all duration-300 ease-out
+            hover:-translate-y-1
+            hover:shadow-[0_10px_30px_rgba(255,255,255,0.25)]
+            hover:scale-[1.04]
+            active:scale-[0.96]
+          "
+        >
+          <Plus className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90" />
+          New workflow
+        </Link>
       </section>
 
       <section className="grid gap-4">
@@ -70,113 +76,113 @@ export default async function WorkflowsPage() {
           const lastExecution = workflow.executions[0];
 
           return (
-            <Link
-  key={workflow.id}
-  href={`/workflows/${workflow.id}`}
-  className="group block rounded-3xl focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
->
-  <div className="rounded-3xl border border-white/10 bg-white/5 p-6 transition duration-200 hover:border-cyan-400/30 hover:bg-white/[0.07] hover:shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_20px_60px_rgba(0,0,0,0.25)]">
-    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-      <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
-  <h2 className="text-2xl font-semibold">{workflow.name}</h2>
-
-  <span
-    className={`rounded-full border px-3 py-1 text-xs ${getStatusStyles(workflow.status)}`}
-  >
-    {workflow.status}
-  </span>
-
-  {/* OPEN EDITOR */}
-  <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-300 opacity-0 transition-all duration-200 group-hover:opacity-100">
-    Open editor
-    <ArrowUpRight className="h-3.5 w-3.5" />
-  </span>
-
-  {/* DELETE */}
-  <DeleteWorkflowButton
-    workflowId={workflow.id}
-    workflowName={workflow.name}
-    className="inline-flex items-center gap-1 rounded-full border border-red-400/20 bg-red-400/10 px-3 py-1 text-xs text-red-300 opacity-0 transition-all duration-200 group-hover:opacity-100 hover:bg-red-400/15 cursor-pointer"
-  />
-</div>
-
-        <p className="max-w-2xl text-white/55">
-          {workflow.description || "Описание пока не добавлено"}
-        </p>
-
-            
-
-        <div className="flex flex-wrap gap-2">
-          
-          {workflow.tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full border border-white/10 bg-[#0b1728] px-3 py-1 text-xs text-white/65 transition group-hover:border-cyan-400/20"
+            <article
+              key={workflow.id}
+              className="group relative rounded-3xl border border-white/10 bg-white/5 p-6 transition duration-200 hover:border-cyan-400/30 hover:bg-white/[0.07] hover:shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_20px_60px_rgba(0,0,0,0.25)]"
             >
-              #{tag}
-            </span>
-          ))}
-        </div>
-      </div>
+              <Link
+                href={`/workflows/${workflow.id}`}
+                aria-label={`Open workflow ${workflow.name}`}
+                className="absolute inset-0 rounded-3xl focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
+              />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
-          <p className="text-sm text-white/40">Nodes</p>
-          <p className="mt-2 text-xl font-semibold">{workflow.nodes.length}</p>
-        </div>
+              <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-2xl font-semibold">{workflow.name}</h2>
 
-        <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
-          <p className="text-sm text-white/40">Enabled</p>
-          <p className="mt-2 text-xl font-semibold">
-            {workflow.isEnabled ? "Yes" : "No"}
-          </p>
-        </div>
+                    <span
+                      className={`rounded-full border px-3 py-1 text-xs ${getStatusStyles(
+                        workflow.status
+                      )}`}
+                    >
+                      {workflow.status}
+                    </span>
 
-        <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
-          <p className="text-sm text-white/40">Version</p>
-          <p className="mt-2 text-xl font-semibold">v{workflow.version}</p>
-        </div>
-      </div>
-    </div>
+                    <span className="relative z-10 inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-300 opacity-0 transition-all duration-200 group-hover:opacity-100">
+                      Open editor
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </span>
 
-    <div className="mt-6 grid gap-4 md:grid-cols-3">
-      <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
-        <div className="mb-3 flex items-center gap-2">
-          <FileCode2 className="h-4 w-4 text-cyan-300" />
-          <p className="text-sm font-medium">Last execution</p>
-        </div>
-        <p className="text-sm text-white/55">
-          {lastExecution ? lastExecution.status : "Нет запусков"}
-        </p>
-      </div>
+                    <DeleteWorkflowButton
+                      workflowId={workflow.id}
+                      workflowName={workflow.name}
+                      className="relative z-10 inline-flex items-center gap-1 rounded-full border border-red-400/20 bg-red-400/10 px-3 py-1 text-xs text-red-300 opacity-0 transition-all duration-200 group-hover:opacity-100 hover:bg-red-400/15 cursor-pointer"
+                    />
+                  </div>
 
-      <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
-        <div className="mb-3 flex items-center gap-2">
-          <BadgeCheck className="h-4 w-4 text-emerald-300" />
-          <p className="text-sm font-medium">Created at</p>
-        </div>
-        <p className="text-sm text-white/55">
-          {new Date(workflow.createdAt).toLocaleString("ru-RU")}
-        </p>
-      </div>
+                  <p className="max-w-2xl text-white/55">
+                    {workflow.description || "Описание пока не добавлено"}
+                  </p>
 
-      <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
-        <div className="mb-3 flex items-center gap-2">
-          {workflow.isEnabled ? (
-            <Play className="h-4 w-4 text-emerald-300" />
-          ) : (
-            <CirclePause className="h-4 w-4 text-amber-300" />
-          )}
-          <p className="text-sm font-medium">Mode</p>
-        </div>
-        <p className="text-sm text-white/55">
-          {workflow.isEnabled ? "Production active" : "Inactive"}
-        </p>
-      </div>
-    </div>
-  </div>
-</Link>
+                  <div className="flex flex-wrap gap-2">
+                    {workflow.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full border border-white/10 bg-[#0b1728] px-3 py-1 text-xs text-white/65 transition group-hover:border-cyan-400/20"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+                    <p className="text-sm text-white/40">Nodes</p>
+                    <p className="mt-2 text-xl font-semibold">{workflow.nodes.length}</p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+                    <p className="text-sm text-white/40">Enabled</p>
+                    <p className="mt-2 text-xl font-semibold">
+                      {workflow.isEnabled ? "Yes" : "No"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+                    <p className="text-sm text-white/40">Version</p>
+                    <p className="mt-2 text-xl font-semibold">v{workflow.version}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative mt-6 grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+                  <div className="mb-3 flex items-center gap-2">
+                    <FileCode2 className="h-4 w-4 text-cyan-300" />
+                    <p className="text-sm font-medium">Last execution</p>
+                  </div>
+                  <p className="text-sm text-white/55">
+                    {lastExecution ? lastExecution.status : "Нет запусков"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+                  <div className="mb-3 flex items-center gap-2">
+                    <BadgeCheck className="h-4 w-4 text-emerald-300" />
+                    <p className="text-sm font-medium">Created at</p>
+                  </div>
+                  <p className="text-sm text-white/55">
+                    {new Date(workflow.createdAt).toLocaleString("ru-RU")}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-[#0b1728] p-4 transition group-hover:border-white/15">
+                  <div className="mb-3 flex items-center gap-2">
+                    {workflow.isEnabled ? (
+                      <Play className="h-4 w-4 text-emerald-300" />
+                    ) : (
+                      <CirclePause className="h-4 w-4 text-amber-300" />
+                    )}
+                    <p className="text-sm font-medium">Mode</p>
+                  </div>
+                  <p className="text-sm text-white/55">
+                    {workflow.isEnabled ? "Production active" : "Inactive"}
+                  </p>
+                </div>
+              </div>
+            </article>
           );
         })}
 

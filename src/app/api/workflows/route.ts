@@ -4,6 +4,7 @@ import { WorkflowService } from "@/server/services/workflow.service";
 import { createWorkflowSchema } from "@/server/validations/workflow";
 import { errorResponse, successResponse } from "@/server/lib/api-response";
 import { toPrismaJson } from "@/server/lib/prisma-json";
+import { revalidatePath } from "next/cache";
 
 /**
  * @swagger
@@ -72,6 +73,9 @@ export async function POST(request: NextRequest) {
       settings: toPrismaJson(data.settings),
       canvas: toPrismaJson(data.canvas),
     });
+
+    revalidatePath("/workflows");
+revalidatePath(`/workflows/${workflow.id}`);
 
     return successResponse(workflow, "Workflow created", 201);
   } catch (error) {

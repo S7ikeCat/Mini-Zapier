@@ -10,6 +10,7 @@ import {
 } from "@prisma/client";
 
 import nodemailer from "nodemailer";
+import dns from "node:dns";
 import { Client } from "pg";
 import { createExecutionContext } from "@/server/lib/workflow-context";
 import type { WorkflowExecutionContext } from "@/server/lib/workflow-context";
@@ -20,7 +21,7 @@ import {
 import { sleep, withTimeout } from "@/server/lib/async-utils";
 import { getErrorMessage } from "@/server/lib/error-utils";
 import { WorkflowNotificationService } from "./workflow-notification.service";
-
+dns.setDefaultResultOrder("ipv4first");
 type RunWorkflowInput = {
   workflowId: string;
   triggerType: TriggerType;

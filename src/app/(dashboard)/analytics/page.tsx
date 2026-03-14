@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import {
   Activity,
   CheckCircle2,
@@ -281,7 +283,7 @@ export default async function AnalyticsPage() {
             </div>
           </div>
 
-          <div className="grid h-[280px] grid-cols-7 items-end gap-3">
+          <div className="grid h-70 grid-cols-7 items-end gap-3">
             {dailyStats.map((item) => {
               const heightPercent = Math.max(
                 8,

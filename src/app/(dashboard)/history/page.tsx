@@ -1,5 +1,7 @@
-import { prisma } from "@/shared/lib/prisma";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
+import { prisma } from "@/shared/lib/prisma";
 function getExecutionColor(status: string) {
   switch (status) {
     case "SUCCESS":

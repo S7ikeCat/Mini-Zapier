@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import { prisma } from "@/shared/lib/prisma";
 import { connection } from "next/server";
 import {

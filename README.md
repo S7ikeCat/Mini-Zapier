@@ -1,36 +1,414 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mini-Zapier
 
-## Getting Started
+Mini-Zapier — это платформа автоматизации workflow, вдохновленная Zapier и n8n.
 
-First, run the development server:
+Проект позволяет создавать автоматические сценарии (workflow) между различными сервисами через визуальный редактор.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Workflow состоит из **узлов (nodes)**, соединенных между собой:
+
+```
+Trigger → Action → Action → ...
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Поддерживаются:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Webhook triggers
+- Email triggers
+- Schedule triggers (cron)
+- HTTP actions
+- Email actions
+- Telegram actions
+- Transform nodes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+# 🌐 Демо
 
-To learn more about Next.js, take a look at the following resources:
+Production:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+https://mini-zapier-7nb3luoox-s7ikecats-projects.vercel.app/
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+# 🖼 Скриншоты
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Input
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+![Input](./screenshots/input.png)
+
+---
+
+### Dashboard
+
+![Dashboard](./screenshots/dashboard.png)
+
+---
+
+### Workflows
+
+![Workflows](./screenshots/workflows.png)
+
+---
+
+### History
+
+![History](./screenshots/history.png)
+
+---
+
+### Executions
+
+![Executions](./screenshots/executions.png)
+
+---
+
+### Analytics
+
+![Analytics](./screenshots/analytics.png)
+
+---
+
+### Workflow Editor
+
+![Workflow Editor](./screenshots/workflow-editor.png)
+
+---
+
+# 🏗 Архитектура проекта
+
+Проект построен на serverless архитектуре.
+
+## Frontend + API
+
+Хостинг:
+
+Vercel
+
+Технологии:
+
+- Next.js (App Router)
+- React
+- TypeScript
+- TailwindCSS
+
+---
+
+## Background Processing
+
+Worker процессы выполняют workflow в фоне.
+
+Хостинг:
+
+Railway
+
+Используется для:
+
+- Workflow workers
+- Scheduler (cron jobs)
+- Queue processing
+
+---
+
+## Queue System
+
+Для обработки задач используется очередь:
+
+BullMQ
+
+Redis хостится на:
+
+Upstash
+
+Используется для:
+
+- workflow execution queue
+- job retry
+- background processing
+
+---
+
+## Database
+
+База данных:
+
+PostgreSQL
+
+Хостинг:
+
+Neon
+
+ORM:
+
+Prisma
+
+Используется для хранения:
+
+- workflows
+- nodes
+- executions
+- execution logs
+- notifications
+- integrations
+
+---
+
+## Email
+
+Отправка email происходит через:
+
+Resend
+
+https://resend.com
+
+Используется для:
+
+- email actions
+- inbound email trigger
+
+---
+
+# ⚙️ Технологический стек
+
+## Frontend
+
+- Next.js
+- React
+- TypeScript
+- TailwindCSS
+
+## Backend
+
+- Next.js API Routes
+- Prisma ORM
+- BullMQ
+
+## Infrastructure
+
+- Vercel — frontend + API
+- Railway — workers и scheduler
+- Neon — PostgreSQL
+- Upstash — Redis
+- Resend — Email
+
+---
+
+# 🧠 Как работает Workflow Engine
+
+Workflow состоит из узлов:
+
+```
+Trigger → Action → Action
+```
+
+### Trigger nodes
+
+- Webhook
+- Email
+- Schedule
+
+### Action nodes
+
+- HTTP Request
+- Email
+- Telegram
+- Transform
+
+---
+
+# 🔁 Execution Flow
+
+```
+Trigger
+   ↓
+API
+   ↓
+Queue (BullMQ)
+   ↓
+Worker (Railway)
+   ↓
+Workflow Engine
+   ↓
+Node Execution
+   ↓
+Next Node
+```
+
+---
+
+# 📡 Webhook Trigger
+
+Каждый workflow может иметь webhook endpoint.
+
+Пример:
+
+```
+POST /api/hooks/[path]
+```
+
+Webhook отправляет payload, который запускает workflow.
+
+---
+
+# 📧 Email Trigger
+
+Входящие email могут запускать workflow.
+
+Endpoint:
+
+```
+POST /api/inbound/email
+```
+
+Email принимается через Resend и превращается в workflow execution.
+
+---
+
+# 🔁 Schedule Trigger
+
+Schedule trigger использует cron выражения.
+
+Пример:
+
+```
+* * * * *
+```
+
+Запуск workflow каждую минуту.
+
+Scheduler работает через Railway worker.
+
+---
+
+# 📦 Структура проекта
+
+```
+src
+ ├── app
+ │   ├── api
+ │   │   ├── workflows
+ │   │   ├── hooks
+ │   │   ├── inbound
+ │   │   └── executions
+ │   └── (dashboard)
+ │       ├── dashboard
+ │       ├── workflows
+ │       ├── analytics
+ │       ├── executions
+ │       └── history
+ │
+ ├── features
+ │   ├── workflow
+ │   └── workflow-editor
+ │
+ ├── server
+ │   ├── services
+ │   ├── queues
+ │   ├── schedulers
+ │   └── workers
+ │
+ ├── shared
+ │   ├── types
+ │   └── lib
+ │
+ └── widgets
+```
+
+---
+
+# 🧪 Локальная разработка
+
+### Установить зависимости
+
+```
+npm install
+```
+
+### Сгенерировать Prisma client
+
+```
+npx prisma generate
+```
+
+### Запустить dev сервер
+
+```
+npm run dev
+```
+
+---
+
+# 🗄 Настройка базы данных
+
+Используется PostgreSQL на Neon.
+
+ENV:
+
+```
+DATABASE_URL=
+```
+
+После изменения Prisma схемы:
+
+```
+npx prisma migrate dev
+```
+
+---
+
+# 🔴 Redis (Upstash)
+
+ENV:
+
+```
+REDIS_URL=
+REDIS_TOKEN=
+```
+
+Используется для BullMQ queue.
+
+---
+
+# 📧 Email (Resend)
+
+ENV:
+
+```
+RESEND_API_KEY=
+```
+
+---
+
+# 🚀 Deployment
+
+Frontend и API:
+
+Vercel
+
+Background workers:
+
+Railway
+
+Database:
+
+Neon
+
+Queue:
+
+Upstash
+
+Email:
+
+Resend
+
+---
+
+# 🔐 Безопасность
+
+В текущей версии:
+
+- нет системы авторизации
+- нет пользовательских аккаунтов
+
+Проект используется как демонстрационный прототип.
+
+---

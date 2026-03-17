@@ -74,6 +74,12 @@ https://mini-zapier-7nb3luoox-s7ikecats-projects.vercel.app/
 
 ---
 
+# 📽️ Демо-видео
+
+https://www.loom.com/share/4bab0aa706464fadabb24004d856d7f5
+
+---
+
 # 🏗 Архитектура проекта
 
 Проект построен на serverless архитектуре.

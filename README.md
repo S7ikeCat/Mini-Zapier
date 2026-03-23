@@ -80,6 +80,18 @@ https://www.loom.com/share/4bab0aa706464fadabb24004d856d7f5
 
 ---
 
+### ТЗ IRL
+
+![IRL](./screenshots/Mini-Zapier.png)
+
+---
+
+### Оценка IRL
+
+![assessment](./assessment.png)
+
+---
+
 # 🏗 Архитектура проекта
 
 Проект построен на serverless архитектуре.
